@@ -4,9 +4,6 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "DirectXTex.lib")
-
-// TODO: DX12関連はRenderクラスに閉じさせる, ApplicationはRendererクラスを持つ
-
 // pragma comment: オブジェクトファイルにコメントを残す。これはリンカーにより読まれる
 
 // @brief	コンソールにフォーマット付き文字列を表示
@@ -21,21 +18,6 @@ void DebugOutput(const char* format, ...) {
 	va_end(valist);
 #endif // DEBUG
 }
-
-// LRESULT? HWND?
-// ウィンドウが出続けてる間マイフレーム呼ばれる？
-// Window生成時に渡すコールバック関数
-LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-	// ウィンドウ破棄時
-	if (msg == WM_DESTROY) {
-		PostQuitMessage(0);
-		return 0;
-	}
-	return DefWindowProc(hwnd, msg, wparam, lparam); // 既定の処理
-}
-
-const unsigned int window_width = 1280;
-const unsigned int window_height = 720;
 
 
 void EnableDebugLayer() {
@@ -67,31 +49,6 @@ void Application::CheckError(LPCSTR msg, HRESULT result) {
 	else {
 		std::cout << msg << " is OK!!!" << std::endl;
 	}
-}
-
-
-void Application::InitializeWindow() {
-	_wndClass = {};
-	_wndClass.cbSize = sizeof(WNDCLASSEX);
-	_wndClass.lpfnWndProc = (WNDPROC)WindowProcedure;//コールバック関数の指定
-	_wndClass.lpszClassName = _T("DirectXTest");//アプリケーションクラス名
-	_wndClass.hInstance = GetModuleHandle(0);//ハンドルの取得
-	RegisterClassEx(&_wndClass);//アプリケーションクラス(こういうの作るからよろしくってOSに予告する)
-	RECT wrc = { 0,0, window_width, window_height };
-
-	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);//ウィンドウのサイズはちょっと面倒なので関数を使って補正する
-//ウィンドウオブジェクトの生成
-	_hwnd = CreateWindow(_wndClass.lpszClassName,//クラス名指定
-		_T("DX12テスト"),//タイトルバーの文字
-		WS_OVERLAPPEDWINDOW,//タイトルバーと境界線があるウィンドウです
-		CW_USEDEFAULT,//表示X座標はOSにお任せします
-		CW_USEDEFAULT,//表示Y座標はOSにお任せします
-		wrc.right - wrc.left,//ウィンドウ幅
-		wrc.bottom - wrc.top,//ウィンドウ高
-		nullptr,//親ウィンドウハンドル
-		nullptr,//メニューハンドル
-		_wndClass.hInstance,//呼び出しアプリケーションハンドル
-		nullptr);//追加パラメータ
 }
 
 void Application::CreateDevice() {
@@ -148,8 +105,8 @@ void Application::CreateSwapChain() {
 	// スワップチェーン
 	// GPU上のメモリ領域？ディスクリプタで確保したビューにより、操作。
 	DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
-	swapchainDesc.Width = window_width;
-	swapchainDesc.Height = window_height;
+	swapchainDesc.Width = windowManager->GetWidth(); // ウィンドウサイズと合わせる
+	swapchainDesc.Height = windowManager->GetHeight();
 	swapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swapchainDesc.Stereo = false;
 	swapchainDesc.SampleDesc.Count = 1;
@@ -161,7 +118,7 @@ void Application::CreateSwapChain() {
 	swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED; // 特に指定なし
 	swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH; // ウインドウ⇔フルスクリーん切り替え可能
 
-	CheckError("CreateSwapChain", _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue.Get(), _hwnd, &swapchainDesc, nullptr, nullptr, (IDXGISwapChain1**)_swapchain.ReleaseAndGetAddressOf()));
+	CheckError("CreateSwapChain", _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue.Get(), windowManager->GetHandle(), &swapchainDesc, nullptr, nullptr, (IDXGISwapChain1**)_swapchain.ReleaseAndGetAddressOf()));
 
 	// バックバッファーを確保してスワップチェーンオブジェクトを生成
 	// ここまでで、バッファーが入れ替わることはあっても、書き換えることはできない。
@@ -187,8 +144,8 @@ void Application::CreateDepthStencilView() {
 	//深度バッファの仕様
 	D3D12_RESOURCE_DESC depthResDesc = {};
 	depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthResDesc.Width = window_width;
-	depthResDesc.Height = window_height;
+	depthResDesc.Width = windowManager->GetWidth();
+	depthResDesc.Height = windowManager->GetHeight();
 	depthResDesc.DepthOrArraySize = 1; // テクスチャ配列でもないし3Dテクスチャでもない
 	// depthResDesc.Format = DXGI_FORMAT_D32_FLOAT;//深度値書き込み用フォーマット
 	depthResDesc.Format = DXGI_FORMAT_R32_TYPELESS; // バッファのビット数は32だけど扱い方はView側が決めてよい
@@ -215,8 +172,8 @@ void Application::CreateDepthStencilView() {
 		IID_PPV_ARGS(_depthBuffer.ReleaseAndGetAddressOf())));
 
 	// Create Shadow Map
-	depthResDesc.Width = window_width;
-	depthResDesc.Height = window_height;
+	depthResDesc.Width = windowManager->GetWidth();
+	depthResDesc.Height = windowManager->GetHeight();
 	CheckError("CreateDepthResource", _dev->CreateCommittedResource(
 		&depthHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -423,14 +380,14 @@ void Application::CreatePipelineState() {
 	ID3DBlob* _psBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
 	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/BasicShader.hlsl",
+		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
 			nullptr,
 			D3D_COMPILE_STANDARD_FILE_INCLUDE,
 			"MainVS",
 			"vs_5_0",
 			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_vsBlob, &errorBlob));
 	CheckError("CompilePixelShader",
-		D3DCompileFromFile(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/BasicShader.hlsl",
+		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
 			nullptr,
 			D3D_COMPILE_STANDARD_FILE_INCLUDE,
 			"MainPS",
@@ -588,14 +545,14 @@ void Application::CreateCanvasPipelineState() {
 	Microsoft::WRL::ComPtr<ID3DBlob> ps;
 	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
 	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/CanvasShader.hlsl",
+		D3DCompileFromFile(L"../dx12-3dgame/shaders/CanvasShader.hlsl",
 			nullptr,
 			D3D_COMPILE_STANDARD_FILE_INCLUDE,
 			"MainVS",
 			"vs_5_0",
 			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, vs.ReleaseAndGetAddressOf(), errorBlob.ReleaseAndGetAddressOf()));
 	CheckError("CompilePixelShader",
-		D3DCompileFromFile(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/CanvasShader.hlsl",
+		D3DCompileFromFile(L"../dx12-3dgame/shaders/CanvasShader.hlsl",
 			nullptr,
 			D3D_COMPILE_STANDARD_FILE_INCLUDE,
 			"MainPS",
@@ -658,7 +615,7 @@ void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DES
 	Microsoft::WRL::ComPtr<ID3DBlob> vs;
 	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
 	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/BasicShader.hlsl",
+		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
 			nullptr,
 			D3D_COMPILE_STANDARD_FILE_INCLUDE,
 			"ShadowVS",
@@ -697,15 +654,16 @@ void Application::CreateDescriptorHeap() {
 void Application::CreateCBV() {
 	//定数バッファ作成
 	XMMATRIX mMatrix = XMMatrixIdentity();
-	//XMMATRIX mMatrix = XMMatrixRotationX(-XM_PIDIV2); // X軸回転。これをやったら、そのまま読み込んだfbxが「ちゃんと」開店した。
+	//XMVECTOR eyePos = { 0, 0, -40 }; // 視点
 	XMVECTOR eyePos = { 0, 13., -10 }; // 視点
+	//XMVECTOR targetPos = { 0, 0, 0 }; // 注視点
 	XMVECTOR targetPos = { 0, 13.5, 0 }; // 注視点
 	//XMFLOAT3 eye(0, 155, -50);
 	//XMFLOAT3 target(0, 150, 0);
 	XMVECTOR upVec = { 0, 1, 0 };
 	_vMatrix = XMMatrixLookAtLH(eyePos, targetPos, upVec);
 	// FOV, aspect ratio, near, far
-	_pMatrix = XMMatrixPerspectiveFovLH(XM_PIDIV2, static_cast<float>(window_width) / static_cast<float>(window_height), 1.0f, 200.0f);
+	_pMatrix = XMMatrixPerspectiveFovLH(XM_PIDIV2, static_cast<float>(windowManager->GetWidth()) / static_cast<float>(windowManager->GetHeight()), 1.0f, 200.0f);
 
 	// shadow matrix
 	XMVECTOR lightVec = { 1, -1, 1 };
@@ -794,7 +752,7 @@ void Application::WaitDrawDone() {
 
 bool Application::Init() {
 	DebugOutput("Show window test");
-	InitializeWindow();
+	windowManager = new TWindowManager(1280, 720);
 #ifdef _DEBUG
 	EnableDebugLayer();
 	// EXECUTION ERROR #538: INVALID_SUBRESOURCE_STATE
@@ -875,6 +833,11 @@ void Application::SetVerticesInfo() {
 		resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		resdesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
+		if (resdesc.Width == 0)
+		{
+			// ベジエ設定等?
+			continue;
+		}
 		ID3D12Resource* vertBuff = nullptr;
 		// D3D12_HEAP_PROPERTIES unko = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);// UPLOADヒープとして 
 		// D3D12_RESOURCE_DESC unti = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));// サイズに応じて適切な設定になる便利
@@ -987,11 +950,11 @@ void Application::LoadTextureToDescriptorHeap(const wchar_t* textureFileName, ID
 
 
 void Application::Run() {
-	ShowWindow(_hwnd, SW_SHOW);//ウィンドウ表示
+	ShowWindow(windowManager->GetHandle(), SW_SHOW);//ウィンドウ表示
 
 	D3D12_VIEWPORT viewport = {};
-	viewport.Width = window_width; // pixel
-	viewport.Height = window_height; // pixel
+	viewport.Width = windowManager->GetWidth(); // pixel
+	viewport.Height = windowManager->GetHeight(); // pixel
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 	viewport.MaxDepth = 1.0f;
@@ -1000,8 +963,8 @@ void Application::Run() {
 	D3D12_RECT scissorrect = {};
 	scissorrect.top = 0;//切り抜き上座標
 	scissorrect.left = 0;//切り抜き左座標
-	scissorrect.right = scissorrect.left + window_width;//切り抜き右座標
-	scissorrect.bottom = scissorrect.top + window_height;//切り抜き下座標
+	scissorrect.right = scissorrect.left + windowManager->GetWidth();//切り抜き右座標
+	scissorrect.bottom = scissorrect.top + windowManager->GetHeight();//切り抜き下座標
 
 	SetVerticesInfo();
 	//ノイズテクスチャの作成
@@ -1054,7 +1017,7 @@ void Application::Run() {
 		}
 
 		angle += 0.01f;
-		_mapTransformMatrix->world = XMMatrixRotationX(-XM_PIDIV2) * XMMatrixRotationY(angle);
+		_mapTransformMatrix->world = XMMatrixRotationX(-XM_PIDIV2) * XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
 		_mapSceneMatrix->view = _vMatrix;
 		_mapSceneMatrix->proj = _pMatrix;
 
@@ -1210,6 +1173,6 @@ void Application::Run() {
 }
 
 void Application::Terminate() {
-	UnregisterClass(_wndClass.lpszClassName, _wndClass.hInstance);
+	delete windowManager;
 	delete _modelImporter;
 }

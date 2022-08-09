@@ -1,8 +1,5 @@
 #pragma once
 
-#include <Windows.h>
-#include <tchar.h>
-
 // 
 #include <d3d12.h>
 #include <d3dx12.h>
@@ -19,6 +16,7 @@
 #include <iostream>
 //#endif
 #include "FbxFileImporter.h"
+#include "WindowManager.h"
 
 using namespace DirectX;
 
@@ -81,8 +79,6 @@ private:
 	};
 	// private member
 	// Windows
-	WNDCLASSEX _wndClass;
-	HWND _hwnd;
 	ID3DBlob* errorBlob = nullptr;
 	XMMATRIX _vMatrix = XMMatrixIdentity();
 	XMMATRIX _pMatrix = XMMatrixIdentity();
@@ -134,6 +130,7 @@ private:
 	std::map<std::string, D3D12_INDEX_BUFFER_VIEW> index_buffer_view;
 
 	FbxFileImporter* _modelImporter = nullptr; // ÇπÇﬂÇƒshared_ptrÇ…ÇµÇΩÇ¢Ç™åªèÛÇ§Ç‹Ç≠Ç¢Ç¡ÇƒÇ»Ç¢ÅB
+	TWindowManager* windowManager = nullptr;
 
 	void InitializeWindow();
 	void CreateDevice();
@@ -155,7 +152,7 @@ private:
 
 	// Singleton: private constructor
 	// not allow to copy but allow to move
-	Application() : _wndClass(), _hwnd() {};
+	Application() {};
 	Application(const Application&) = delete;
 	void operator=(const Application&) = delete;
 

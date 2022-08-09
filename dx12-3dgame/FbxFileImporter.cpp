@@ -28,9 +28,10 @@ void FbxFileImporter::LoadMesh(FbxMesh* mesh) {
 	std::cout << "Load " << meshName << " Data" << std::endl;
 	// index bufferのコピー
 	for (int i = 0; i < mesh->GetPolygonCount(); ++i) {
-		mesh_indices[meshName].push_back(i * 3);
-		mesh_indices[meshName].push_back(i * 3 + 1);
+		// fbxは右手系なのでdxではポリゴン生成を逆に
 		mesh_indices[meshName].push_back(i * 3 + 2);
+		mesh_indices[meshName].push_back(i * 3 + 1);
+		mesh_indices[meshName].push_back(i * 3);
 	}
 	mesh_vertices[meshName].resize(index_count);
 	auto AddBoneInfo = [](Vertex& v, int boneid, double weight) {
@@ -102,6 +103,11 @@ void FbxFileImporter::LoadMesh(FbxMesh* mesh) {
 
 	// meshとマテリアルの結び付け。メッシュ単位で描画するので、そこからマテリアルが取れればさらにそこからテクスチャが取れて、無事UVマッピング。
 	if (mesh->GetElementMaterialCount() > 0) {
+		int materialCount = mesh->GetElementMaterialCount();
+		for (int i = 0; i < materialCount; ++i) {
+			std::cout << i << " th material name is " << mesh->GetElementMaterial(i)->GetName() << std::endl;
+		}
+
 		// Mesh側のマテリアル情報を取得
 		FbxLayerElementMaterial* material = mesh->GetElementMaterial(0);
 		// FbxSurfaceMaterialのインデックスバッファからインデックスを取得
@@ -245,9 +251,9 @@ void FbxFileImporter::CreateFbxManager() {
 	scene = FbxScene::Create(manager, "");
 
 	//データをインポート
-	//const char* filename = "assets/FBX/Alicia_solid.FBX";
-	//const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/FBX/Alicia.fbx";
-	const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/model/WhipperNude.fbx";
+	//const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/model/WhipperNude.fbx";
+	//const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/luoli-run/source/luoli_run_triangle.fbx";
+	const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/alice/source/mana3.fbx";
 	FbxImporter* importer = FbxImporter::Create(manager, "");
 	importer->Initialize(filename, -1, manager->GetIOSettings());
 	int maj, min, rev;
@@ -257,7 +263,12 @@ void FbxFileImporter::CreateFbxManager() {
 	importer->Import(scene);
 	importer->Destroy();
 	// 三角ポリゴン化
-	//FbxGeometryConverter geometryConverter(manager);
+	FbxGeometryConverter geometryConverter(manager);
+	// これで一つのメッシュのポリゴンに複数のマテリアルが割り当てられていても、一つのメッシュにつき一つのマテリアルとして分割される。
+	geometryConverter.SplitMeshesPerMaterial(scene, true);
+	geometryConverter.Triangulate(scene, true);
+	// SaveScene(manager, scene, "Alicia.fbx", 0, 0);
+	// 現状これで書き出すとmaj=7, min=7, rev=0になり、blenderで読めない形式になる
 
 	// Animation Preparation
 	FbxArray<FbxString*> AnimStackNameArray;
@@ -266,7 +277,7 @@ void FbxFileImporter::CreateFbxManager() {
 	for (int i = 0; i < AnimStackNameArray.Size(); ++i) {
 		std::cout << *AnimStackNameArray[i] << std::endl;
 	}
-	FbxAnimStack* AnimationStack = scene->FindMember<FbxAnimStack>(AnimStackNameArray[7]->Buffer());
+	FbxAnimStack* AnimationStack = scene->FindMember<FbxAnimStack>(AnimStackNameArray[0]->Buffer());
 	scene->SetCurrentAnimationStack(AnimationStack); // set this animation stack to use
 
 	FbxTakeInfo* takeInfo = scene->GetTakeInfo(*(AnimStackNameArray[AnimStackNumber]));
@@ -275,25 +286,23 @@ void FbxFileImporter::CreateFbxManager() {
 	frameTime.SetTime(0, 0, 0, 1, 0, scene->GetGlobalSettings().GetTimeMode());
 	timeCount = animStartTime;
 
-	// これで一つのメッシュのポリゴンに複数のマテリアルが割り当てられていても、一つのメッシュにつき一つのマテリアルとして分割される。
-	//geometryConverter.SplitMeshesPerMaterial(scene, true);
-	// geometryConverter.Triangulate(scene, true);
-	// SaveScene(manager, scene, "Alicia.fbx", 0, 0);
-	// 現状これで書き出すとmaj=7, min=7, rev=0になり、blenderで読めない形式になる
-
 	int materialCount = scene->GetMaterialCount();
 	for (int i = 0; i < materialCount; ++i) {
-		FbxSurfaceMaterial* surfaceMaterial = scene->GetMaterial(i);
-		LoadMaterial(surfaceMaterial);
-
+		FbxSurfaceMaterial* material = scene->GetMaterial(i);
+		std::cout << i << " th material name is " << material->GetName() << '\n';
+		//std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
+		std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/alice/textures/" + (std::string)material->GetName() + ".png";
+		materialNameToTexture[material->GetName()] = LoadTextureFromFile(texturePath);
+		LoadMaterial(material);
 	}
 	int meshCount = scene->GetSrcObjectCount<FbxMesh>();
-	for (int i = 0; i < meshCount; ++i) {
+	bool bSkipLastMesh = true;
+	for (int i = 0; i < meshCount - bSkipLastMesh; ++i) {
 		FbxMesh* mesh = scene->GetSrcObject<FbxMesh>(i);
-		std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
-		materialNameToTexture[mesh->GetName()] = LoadTextureFromFile(texturePath);
+		std::cout << i << " th mesh name is " << mesh->GetName() << '\n';
 		LoadMesh(mesh);
 	}
+	//sceneを後で使うためまだ破棄しない
 	//manager->Destroy();
 }
 
@@ -391,7 +400,13 @@ ID3D12Resource* FbxFileImporter::LoadTextureFromFile(std::string& texPath) {
 	//auto result = loadLambdaTable[ext](wtexpath,
 	//	&metadata,
 	//	scratchImg);
-	HRESULT result = LoadFromTGAFile(wtexpath.c_str(), &metadata, scratchImg);
+	HRESULT result;
+	if (texPath.find(".png") != std::string::npos) {
+		result = LoadFromWICFile(wtexpath.c_str(), WIC_FLAGS_NONE, &metadata, scratchImg);
+	}
+	else {
+		result = LoadFromTGAFile(wtexpath.c_str(), &metadata, scratchImg);
+	}
 
 	std::cout << "LOADING: " << texPath << std::endl;
 	if (FAILED(result)) {

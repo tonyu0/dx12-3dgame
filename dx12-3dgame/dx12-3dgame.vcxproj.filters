@@ -24,7 +24,10 @@
     <ClCompile Include="FbxFileImporter.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="Renderer.cpp">
+    <ClCompile Include="DX12Renderer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,16 +38,19 @@
     <ClInclude Include="FbxFileImporter.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="Renderer.h">
+    <ClInclude Include="DX12Renderer.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowManager.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="BasicShader.hlsl">
-      <Filter>ソース ファイル</Filter>
+    <FxCompile Include="shaders\BasicShader.hlsl">
+      <Filter>リソース ファイル</Filter>
     </FxCompile>
-    <FxCompile Include="CanvasShader.hlsl">
-      <Filter>ソース ファイル</Filter>
+    <FxCompile Include="shaders\CanvasShader.hlsl">
+      <Filter>リソース ファイル</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>
