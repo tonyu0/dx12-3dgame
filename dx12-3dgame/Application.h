@@ -1,20 +1,10 @@
 #pragma once
-
-// 
-#include <d3d12.h>
-#include <d3dx12.h>
-#include <dxgi1_6.h>
-#include <d3dcompiler.h>
-#include <DirectXMath.h>
-#include <DirectXTex.h>
-//
-
 #include <vector>
 #include <map>
-#include <wrl.h>
 //#ifdef _DEBUG
 #include <iostream>
 //#endif
+#include "Renderer/DX12RendererCommon.h"
 #include "FbxFileImporter.h"
 #include "WindowManager.h"
 

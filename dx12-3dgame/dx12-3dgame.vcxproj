@@ -174,12 +174,19 @@
     <ClCompile Include="DX12Renderer.cpp" />
     <ClCompile Include="FbxFileImporter.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Renderer\DX12PipelineState.cpp" />
+    <ClCompile Include="Renderer\DX12RootSignature.cpp" />
+    <ClCompile Include="Renderer\Shader.cpp" />
     <ClCompile Include="WindowManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="DX12Renderer.h" />
     <ClInclude Include="FbxFileImporter.h" />
+    <ClInclude Include="Renderer\DX12PipelineState.h" />
+    <ClInclude Include="Renderer\DX12RendererCommon.h" />
+    <ClInclude Include="Renderer\DX12RootSignature.h" />
+    <ClInclude Include="Renderer\Shader.h" />
     <ClInclude Include="WindowManager.h" />
   </ItemGroup>
   <ItemGroup>

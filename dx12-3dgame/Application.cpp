@@ -1,11 +1,5 @@
 #include "Application.h"
-
-#pragma comment(lib, "d3d12.lib")
-#pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "DirectXTex.lib")
-// pragma comment: オブジェクトファイルにコメントを残す。これはリンカーにより読まれる
-
+#include "Renderer/Shader.h"
 // @brief	コンソールにフォーマット付き文字列を表示
 // @param	format フォーマット %d or %f etc
 // @param	可変長引数
@@ -376,23 +370,9 @@ void Application::CreateRootSignature() {
 
 void Application::CreatePipelineState() {
 	// Compile shader, using d3dcompiler
-	ID3DBlob* _vsBlob = nullptr;
-	ID3DBlob* _psBlob = nullptr;
-	ID3DBlob* errorBlob = nullptr;
-	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"MainVS",
-			"vs_5_0",
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_vsBlob, &errorBlob));
-	CheckError("CompilePixelShader",
-		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"MainPS",
-			"ps_5_0",
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_psBlob, &errorBlob));
+	TShader vs, ps;
+	vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainVS");
+	ps.LoadPS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainPS");
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
 		{
 			"POSITION",
@@ -442,10 +422,8 @@ void Application::CreatePipelineState() {
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 	gpipeline.pRootSignature = _rootSignature.Get();
-	gpipeline.VS.pShaderBytecode = _vsBlob->GetBufferPointer();
-	gpipeline.VS.BytecodeLength = _vsBlob->GetBufferSize();
-	gpipeline.PS.pShaderBytecode = _psBlob->GetBufferPointer();
-	gpipeline.PS.BytecodeLength = _psBlob->GetBufferSize();
+	gpipeline.VS = vs.GetShaderBytecode();
+	gpipeline.PS = ps.GetShaderBytecode();
 
 	// sample maskよくわからんけどデフォでおk？
 	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;//中身は0xffffffff
@@ -539,25 +517,9 @@ void Application::CreateCanvasPipelineState() {
 		},
 	};
 	// ここで、シェーダーごとにパイプラインステートを作る？
-
-	// Compile shader, using d3dcompiler
-	Microsoft::WRL::ComPtr<ID3DBlob> vs;
-	Microsoft::WRL::ComPtr<ID3DBlob> ps;
-	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
-	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"../dx12-3dgame/shaders/CanvasShader.hlsl",
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"MainVS",
-			"vs_5_0",
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, vs.ReleaseAndGetAddressOf(), errorBlob.ReleaseAndGetAddressOf()));
-	CheckError("CompilePixelShader",
-		D3DCompileFromFile(L"../dx12-3dgame/shaders/CanvasShader.hlsl",
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"MainPS",
-			"ps_5_0",
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, ps.ReleaseAndGetAddressOf(), errorBlob.ReleaseAndGetAddressOf()));
+	TShader vs, ps;
+	vs.LoadVS(L"../dx12-3dgame/shaders/CanvasShader.hlsl", "MainVS");
+	ps.LoadPS(L"../dx12-3dgame/shaders/CanvasShader.hlsl", "MainPS");
 
 	// create root signature
 	D3D12_DESCRIPTOR_RANGE range = {};
@@ -579,16 +541,15 @@ void Application::CreateCanvasPipelineState() {
 	rsDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	Microsoft::WRL::ComPtr<ID3DBlob> rsBlob;
-	Microsoft::WRL::ComPtr<ID3DBlob> errBlob;
-	CheckError("SerializeCanvasRootSignature", D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, rsBlob.ReleaseAndGetAddressOf(), errBlob.ReleaseAndGetAddressOf()));
+	CheckError("SerializeCanvasRootSignature", D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, rsBlob.ReleaseAndGetAddressOf(), &errorBlob));
 	CheckError("CreateCanvasRootSignature", _dev->CreateRootSignature(0, rsBlob->GetBufferPointer(), rsBlob->GetBufferSize(), IID_PPV_ARGS(_canvasRootSignature.ReleaseAndGetAddressOf())));
 
 
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 	gpipeline.pRootSignature = _canvasRootSignature.Get();
-	gpipeline.VS = CD3DX12_SHADER_BYTECODE(vs.Get());
-	gpipeline.PS = CD3DX12_SHADER_BYTECODE(ps.Get());
+	gpipeline.VS = vs.GetShaderBytecode();
+	gpipeline.PS = ps.GetShaderBytecode();
 
 	gpipeline.InputLayout.NumElements = _countof(canvasLayout);
 	gpipeline.InputLayout.pInputElementDescs = canvasLayout;
@@ -603,33 +564,18 @@ void Application::CreateCanvasPipelineState() {
 	gpipeline.SampleDesc.Count = 1;
 	gpipeline.SampleDesc.Quality = 0;
 	gpipeline.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-
 	CheckError("CreateGraphicsPipelineState", _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(_canvasPipelineState.ReleaseAndGetAddressOf())));
-
 }
 
 void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc) {
-	// VS 
-	// shader for shadow
-	// Compile shader, using d3dcompiler
-	Microsoft::WRL::ComPtr<ID3DBlob> vs;
-	Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
-	CheckError("CompileVertexShader",
-		D3DCompileFromFile(L"../dx12-3dgame/shaders/BasicShader.hlsl",
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"ShadowVS",
-			"vs_5_0",
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, vs.ReleaseAndGetAddressOf(), errorBlob.ReleaseAndGetAddressOf()));
-
-	gpipelineDesc.VS = CD3DX12_SHADER_BYTECODE(vs.Get());
-	gpipelineDesc.PS.BytecodeLength = 0;
+	TShader vs;
+	vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "ShadowVS");
+	gpipelineDesc.VS = vs.GetShaderBytecode();
 	gpipelineDesc.PS.pShaderBytecode = nullptr;
+	gpipelineDesc.PS.BytecodeLength = 0;
 	gpipelineDesc.NumRenderTargets = 0;
 	gpipelineDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-
 	CheckError("CreateGraphicsPipelineState", _dev->CreateGraphicsPipelineState(&gpipelineDesc, IID_PPV_ARGS(_shadowPipelineState.ReleaseAndGetAddressOf())));
-
 }
 
 void Application::CreateDescriptorHeap() {

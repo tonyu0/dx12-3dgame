@@ -30,6 +30,15 @@
     <ClCompile Include="WindowManager.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="Renderer\DX12PipelineState.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\DX12RootSignature.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\Shader.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -42,6 +51,18 @@
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="WindowManager.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12PipelineState.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12RendererCommon.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12RootSignature.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\Shader.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
   </ItemGroup>
