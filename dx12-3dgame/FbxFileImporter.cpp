@@ -157,7 +157,7 @@ void FbxFileImporter::LoadMaterial(FbxSurfaceMaterial* material)
 					file_path = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/FBX/" + file_path.substr(file_path.rfind('\\') + 1, file_path.length());
 					std::cout << "LOAD TEXTURE: " << file_path << std::endl;
 					// texbuff(実体)を受け取る。WriteToSubresource後
-					materialNameToTexture[material->GetName()] = LoadTextureFromFile(file_path);
+					m_materialNameToTextureName[material->GetName()] = file_path;
 					//..\
 					// 文字列を変換した後は、各自のテクスチャ読み込み関数を用いてテクスチャを読むこむ。
 					// 描画時のマテリアルごとのテクスチャ指定ができるように、マテリアル情報とテクスチャ情報を結び付ける。
@@ -292,7 +292,7 @@ void FbxFileImporter::CreateFbxManager() {
 		std::cout << i << " th material name is " << material->GetName() << '\n';
 		//std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
 		std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/alice/textures/" + (std::string)material->GetName() + ".png";
-		materialNameToTexture[material->GetName()] = LoadTextureFromFile(texturePath);
+		m_materialNameToTextureName[material->GetName()] = texturePath;
 		LoadMaterial(material);
 	}
 	int meshCount = scene->GetSrcObjectCount<FbxMesh>();
@@ -374,94 +374,3 @@ DirectX::XMMATRIX FbxFileImporter::ConvertFbxMatrix(FbxAMatrix& src)
 		static_cast<FLOAT>(src.Get(2, 0)), static_cast<FLOAT>(src.Get(2, 1)), static_cast<FLOAT>(src.Get(2, 2)), static_cast<FLOAT>(src.Get(2, 3)),
 		static_cast<FLOAT>(src.Get(3, 0)), static_cast<FLOAT>(src.Get(3, 1)), static_cast<FLOAT>(src.Get(3, 2)), static_cast<FLOAT>(src.Get(3, 3)));
 }
-
-// シェーダーリソースビューはマテリアルと同数作成
-// シェーダーリソースビューとマテリアルのビューは同じディスクリプタヒープに置く。
-// マテリアルとテクすちゃそれぞれのルートパラメーターをまとめる。ディスクリプタレンジは分ける。
-// 1. テクスチャロード、　2. リソースの作成、 3. データコピー
-
-ID3D12Resource* FbxFileImporter::LoadTextureFromFile(std::string& texPath) {
-	// psd -> tga 拡張し
-//	texPath.replace(texPath.find("psd"), 3, "tga");
-	// 文字列literalを参照で受け取ってるとここでエラー
-
-
-	auto it = _resourceTable.find(texPath);
-	if (it != _resourceTable.end()) {
-		//テーブルに内にあったらロードするのではなくマップ内の
-		//リソースを返す
-		return _resourceTable[texPath];
-	}
-	//WICテクスチャのロード
-	TexMetadata metadata = {};
-	ScratchImage scratchImg = {};
-	std::wstring wtexpath = GetWideStringFromString(texPath);//テクスチャのファイルパス
-	std::string ext = GetExtension(texPath);//拡張子を取得
-	//auto result = loadLambdaTable[ext](wtexpath,
-	//	&metadata,
-	//	scratchImg);
-	HRESULT result;
-	if (texPath.find(".png") != std::string::npos) {
-		result = LoadFromWICFile(wtexpath.c_str(), WIC_FLAGS_NONE, &metadata, scratchImg);
-	}
-	else {
-		result = LoadFromTGAFile(wtexpath.c_str(), &metadata, scratchImg);
-	}
-
-	std::cout << "LOADING: " << texPath << std::endl;
-	if (FAILED(result)) {
-		return nullptr;
-	}
-	auto img = scratchImg.GetImage(0, 0, 0);//生データ抽出
-
-	//WriteToSubresourceで転送する用のヒープ設定
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;//特殊な設定なのでdefaultでもuploadでもなく
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;//ライトバックで
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;//転送がL0つまりCPU側から直で
-	texHeapProp.CreationNodeMask = 0;//単一アダプタのため0
-	texHeapProp.VisibleNodeMask = 0;//単一アダプタのため0
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = metadata.format;
-	resDesc.Width = static_cast<UINT>(metadata.width);//幅
-	resDesc.Height = static_cast<UINT>(metadata.height);//高さ
-	resDesc.DepthOrArraySize = static_cast<UINT16>(metadata.arraySize);
-	resDesc.SampleDesc.Count = 1;//通常テクスチャなのでアンチェリしない
-	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = static_cast<UINT16>(metadata.mipLevels);//ミップマップしないのでミップ数は１つ
-	resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//レイアウトについては決定しない
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//とくにフラグなし
-
-	std::cout << "CREATE BUFFER: " << texPath << std::endl;
-	ID3D12Resource* texbuff = nullptr;
-	result = Device->CreateCommittedResource(
-		&texHeapProp,
-		D3D12_HEAP_FLAG_NONE,//特に指定なし
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		nullptr,
-		IID_PPV_ARGS(&texbuff)
-	);
-
-	if (FAILED(result)) {
-		return nullptr;
-	}
-
-	std::cout << "LOADING: " << texPath << std::endl;
-	result = texbuff->WriteToSubresource(0,
-		nullptr,//全領域へコピー
-		img->pixels,//元データアドレス
-		static_cast<UINT>(img->rowPitch),//1ラインサイズ
-		static_cast<UINT>(img->slicePitch)//全サイズ
-	);
-	if (FAILED(result)) {
-		return nullptr;
-	}
-	std::cout << texPath << " is LOADED!!!" << std::endl;
-
-	_resourceTable[texPath] = texbuff;
-	return texbuff;
-}
-

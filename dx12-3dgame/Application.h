@@ -98,12 +98,12 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _canvasPipelineState = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _shadowPipelineState = nullptr;
 
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature = nullptr;
+	class TDX12RootSignature* m_rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
 	// basicDescHeap: matrix, textureを結び付けるディスクリプタヒープ
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _basicDescriptorHeap = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _materialDescriptorHeap = nullptr;
+	class TDX12DescriptorHeap* m_basicDescriptorHeap = nullptr;
+	class TDX12DescriptorHeap* m_materialDescriptorHeap = nullptr;
 
 	// for Post Process Additional Path
 	Microsoft::WRL::ComPtr<ID3D12Resource> _postProcessResource = nullptr;
@@ -130,7 +130,6 @@ private:
 	void CreatePipelineState();
 	void CreateCanvasPipelineState();
 	void CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc);
-	void CreateRootSignature();
 	void CreateDescriptorHeap();
 	void CreateCBV();
 	void CreatePostProcessResourceAndView();
@@ -138,7 +137,6 @@ private:
 	void WaitDrawDone();
 
 	void SetVerticesInfo();
-	void LoadTextureToDescriptorHeap(const wchar_t* textureFileName, ID3D12DescriptorHeap& descriptorHeap, int orderOfDescriptor);
 
 	// Singleton: private constructor
 	// not allow to copy but allow to move

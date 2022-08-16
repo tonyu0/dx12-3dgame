@@ -1,5 +1,9 @@
 #include "Application.h"
 #include "Renderer/Shader.h"
+#include "Renderer/DX12RootSignature.h"
+#include "Renderer/DX12DescriptorHeap.h"
+#include "Renderer/DX12ConstantBuffer.h"
+#include "Renderer/DX12ShaderResource.h"
 // @brief	コンソールにフォーマット付き文字列を表示
 // @param	format フォーマット %d or %f etc
 // @param	可変長引数
@@ -249,125 +253,6 @@ void Application::CreatePostProcessResourceAndView() {
 	_dev->CreateShaderResourceView(_postProcessResource.Get(), &srvDesc, _postProcessSRVHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Application::CreateRootSignature() {
-	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	// shaderのregisterに登録する値を伝えるのがDescriptorTable. これの設定に使うのがDescriptorRange, RangeごとにDescriptorHeapのようにでスクリプタ数を保持
-	// DescriptorTableをまとめるのがRootSignature, これの設定に使うのがRootParameter
-
-	// ルーﾄシグネチャにルートパラメーターを設定 それがディスクリプタレンジ。
-	// まとめると、rangeで起点のスロットと種別を指定したものを複数root parameterのdescriptor rangeに渡すと、まとめてシェーダーに指定できる。
-	D3D12_DESCRIPTOR_RANGE descTblRange[5] = {}; // 読まれただけで結び付けられなかったテクスチャはどうなるんだろう。。。 
-	// テーブルに一つもヒープっを結び付けなくてもクラッシュもしないらしい。
-	//Rangeという情報は、シェーダのレジスタ番号n番からx個のレジスタに、Heapのm番からのDescriptorを割り当てます、という情報です。
-		//もちろんレジスタの種類が違えばRangeも違ってくるので、現在の例ではマテリアル用のDescriptorHeapに対して1つのDescriptorTableがあり、そいつがRangeを2つ持つことになります。
-	descTblRange[0].NumDescriptors = 2;
-	descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	descTblRange[0].BaseShaderRegister = 0; // b0 ~ b1
-	descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	descTblRange[1].NumDescriptors = 1;
-	descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange[1].BaseShaderRegister = 0; // t0
-	descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	// Material
-	descTblRange[2].NumDescriptors = 1;
-	descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange[2].BaseShaderRegister = 1; // t1
-	descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	// shadow map
-	descTblRange[3].NumDescriptors = 1;
-	descTblRange[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange[3].BaseShaderRegister = 2; // t2
-	// 上の、実は全部まとめられるんじゃないか？
-
-
-	// レンジ: ヒープ上に同じ種類のでスクリプタが連続している場合、まとめて指定できる
-	// シェーダーリソースと定数バッファーを同一パラメーターとして扱う。
-	// ルートパラメーターを全シェーダーから参照可能にする。
-	// SRVとCBVが連続しており、レンジも連続してるため←この理由がよくわからん
-	// 8章で、今までは行列だけだったが、マテリアルも読み込むため、るーとぱらめーたーを増設。
-
-	// 以下のノリでCBVは渡せるっぽいので、一度ちゃんと起動できたら試してみる。
-	//root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-	//root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	//root_parameters[0].Descriptor.ShaderRegister = 0;
-	//root_parameters[0].Descriptor.RegisterSpace = 0;
-
-	// command_list->SetGraphicsRootConstantBufferView(0, constant_buffer_->GetGPUVirtualAddress());
-
-	//cbuffer cbTansMatrix : register(b0) { // if ShaderRegister = 1 then b1.
-	//	float4x4 WVP;
-	//};
-
-	// テーブルがなんのテーブルか？これはリソースをどこに配置するかのテーブルである。
-	D3D12_ROOT_PARAMETER rootparam[3] = {};
-	// 行列、テクスチャ用root parameter
-	rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	// CBVだけならD3D12_ROOT_PARAMETER_TYPE_CBVで奥ちゃってもよい。
-	// その場合、SetGraphicsRootConstantBufferViewで
-	rootparam[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];
-	rootparam[0].DescriptorTable.NumDescriptorRanges = 2;
-	//rootparam[0].Descriptor.ShaderRegister = 0; // b0
-	//rootparam[0].Descriptor.RegisterSpace = 0;
-	rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // 共有メモリのアクセス権限を設定している？
-	// マテリアル用root parameter
-	rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[2];
-	rootparam[1].DescriptorTable.NumDescriptorRanges = 1;
-	rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	// shadow map
-	rootparam[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootparam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rootparam[2].DescriptorTable.pDescriptorRanges = &descTblRange[3];
-	rootparam[2].DescriptorTable.NumDescriptorRanges = 1;
-
-	rootSignatureDesc.pParameters = rootparam;
-	rootSignatureDesc.NumParameters = 3;
-	// ここを一体化前と混同して1にしたら、SerializeRootSignatureが失敗して終了
-
-	// 3D textureでは奥行にwを使う。
-	D3D12_STATIC_SAMPLER_DESC samplerDesc[3] = {};
-	samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;//ボーダーの時は黒
-	// samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;//補間しない(ニアレストネイバー)
-	samplerDesc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;//補間しない(ニアレストネイバー)
-	// samplerDesc[0].MipLODBias = 0.0; // what is this.
-	// samplerDesc[0].MaxAnisotropy = 16; // what?
-	samplerDesc[0].MaxLOD = D3D12_FLOAT32_MAX;//ミップマップ最大値
-	samplerDesc[0].MinLOD = 0.0f;//ミップマップ最小値
-	samplerDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;//オーバーサンプリングの際リサンプリングしない？
-	samplerDesc[0].ShaderRegister = 0;
-	samplerDesc[0].RegisterSpace = 0; // s0
-	samplerDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;//ピクセルシェーダからのみ可視
-	samplerDesc[1] = samplerDesc[0];
-	samplerDesc[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[1].ShaderRegister = 1; // s1
-	samplerDesc[2] = samplerDesc[0];
-	samplerDesc[2].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[2].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[2].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	samplerDesc[2].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL; // <= ならtrue(1.0), otherwise 0.0
-	samplerDesc[2].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR; // bilinear hokan
-	samplerDesc[2].MaxAnisotropy = 1; // 深度で傾斜させる
-	samplerDesc[2].ShaderRegister = 2;
-
-	rootSignatureDesc.pStaticSamplers = samplerDesc; // StaticSamplerは特に設定しなくてもs0, s1に結びつく。
-	rootSignatureDesc.NumStaticSamplers = 3;
-
-	ID3DBlob* rootSigBlob = nullptr;
-	// Selialize Root Signature?
-	CheckError("SelializeRootSignature", D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &rootSigBlob, &errorBlob));
-	std::cout << rootSigBlob->GetBufferSize() << std::endl;
-	CheckError("CreateRootSignature", _dev->CreateRootSignature(0, rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(), IID_PPV_ARGS(_rootSignature.ReleaseAndGetAddressOf())));
-	rootSigBlob->Release();
-
-}
-
-
 void Application::CreatePipelineState() {
 	// Compile shader, using d3dcompiler
 	TShader vs, ps;
@@ -419,9 +304,8 @@ void Application::CreatePipelineState() {
 		}
 	};
 
-
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
-	gpipeline.pRootSignature = _rootSignature.Get();
+	gpipeline.pRootSignature = m_rootSignature->GetRootSignaturePointer();
 	gpipeline.VS = vs.GetShaderBytecode();
 	gpipeline.PS = ps.GetShaderBytecode();
 
@@ -477,8 +361,6 @@ void Application::CreatePipelineState() {
 	renderTargetBlendDesc.LogicOpEnable = false;
 
 	gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
-
-
 
 	gpipeline.InputLayout.pInputElementDescs = inputLayout;//レイアウト先頭アドレス
 	gpipeline.InputLayout.NumElements = _countof(inputLayout);//レイアウト配列数
@@ -579,17 +461,11 @@ void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DES
 }
 
 void Application::CreateDescriptorHeap() {
-	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {}; // こんな感じで、CBV, SRV, UAVの設定はほぼ同じなので、使いまわしてみる。同一サイズの容量を、heapに積み上げていく。
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;//シェーダから見えるように
-	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 3; // CBV, CBV, SRV
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	CheckError("CreatMaterialDescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_basicDescriptorHeap.ReleaseAndGetAddressOf())));
-	descHeapDesc.NumDescriptors = (int)_modelImporter->mesh_vertices.size();
-	std::cout << "VERTICES COUNTS: " << _modelImporter->mesh_vertices.size() << std::endl;
-	CheckError("CreatMaterialDescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_materialDescriptorHeap.ReleaseAndGetAddressOf())));
+	m_basicDescriptorHeap = new TDX12DescriptorHeap();
+	m_materialDescriptorHeap = new TDX12DescriptorHeap();
 
 	// Descriptor heap for RTV
+	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	descHeapDesc.NumDescriptors = 2; // 表裏
@@ -598,14 +474,10 @@ void Application::CreateDescriptorHeap() {
 }
 
 void Application::CreateCBV() {
-	//定数バッファ作成
+	// TODO : ここらへんinputから動かせるようにする　分かるように左上にprint
 	XMMATRIX mMatrix = XMMatrixIdentity();
-	//XMVECTOR eyePos = { 0, 0, -40 }; // 視点
 	XMVECTOR eyePos = { 0, 13., -10 }; // 視点
-	//XMVECTOR targetPos = { 0, 0, 0 }; // 注視点
 	XMVECTOR targetPos = { 0, 13.5, 0 }; // 注視点
-	//XMFLOAT3 eye(0, 155, -50);
-	//XMFLOAT3 target(0, 150, 0);
 	XMVECTOR upVec = { 0, 1, 0 };
 	_vMatrix = XMMatrixLookAtLH(eyePos, targetPos, upVec);
 	// FOV, aspect ratio, near, far
@@ -618,65 +490,24 @@ void Application::CreateCBV() {
 	// light pos: 視点と注視点の距離を維持
 	auto lightPos = targetPos + XMVector3Normalize(lightVec) * XMVector3Length(XMVectorSubtract(targetPos, eyePos)).m128_f32[0];
 
-	// Transform
+	TDX12ConstantBuffer* transformConstantBuffer = new TDX12ConstantBuffer(sizeof(TransformMatrices), _dev.Get());
+	TDX12ConstantBuffer* sceneConstantBuffer = new TDX12ConstantBuffer(sizeof(SceneMatrices), _dev.Get());
 	{
-		D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(TransformMatrices) + 0xff) & ~0xff);
-		ID3D12Resource* constBuff = nullptr;
-		// このbufferはここで寿命を迎えるが、MapしたGPU上の仮想アドレスをDescriptorHeapにコピーするので大丈夫。
-		CheckError("CreateConstBufferResource", _dev->CreateCommittedResource(
-			&heapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			// 256の倍数にするという演算。 size + (256 - size % 256) 
-			// 0xffを足して~0xffで&取ると、　マスクしたことで強制的に256の倍数に。0xffを足すことでビットの繰り上がりは高々1
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&constBuff)
-		));
-
-		CheckError("MapTransformMatrix", constBuff->Map(0, nullptr, (void**)&_mapTransformMatrix));
+		transformConstantBuffer->Map((void**)&_mapTransformMatrix);
 		_mapTransformMatrix->world = mMatrix;
 		std::vector<XMMATRIX> boneMatrices(256, XMMatrixIdentity());
-		//for (int i = 2; i < 6; ++i)
-//			boneMatrices[i] = XMMatrixRotationZ(XM_PIDIV2);
 		std::copy(boneMatrices.begin(), boneMatrices.end(), _mapTransformMatrix->bones);
-
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = (UINT)constBuff->GetDesc().Width;
-		_dev->CreateConstantBufferView(&cbvDesc, _basicDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	}
-
-	{
-		D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrices) + 0xff) & ~0xff);
-		ID3D12Resource* constBuff = nullptr;
-		CheckError("CreateConstBufferResource", _dev->CreateCommittedResource(
-			&heapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&resDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&constBuff)
-		));
-		CheckError("MapSceneMatrix", constBuff->Map(0, nullptr, (void**)&_mapSceneMatrix));
+		// TODO : ここらへん設定しやすいように, Map interfaceを消す
+		sceneConstantBuffer->Map((void**)&_mapSceneMatrix);
 		_mapSceneMatrix->view = _vMatrix;
 		_mapSceneMatrix->proj = _pMatrix;
 		_mapSceneMatrix->lightViewProj = XMMatrixLookAtLH(lightPos, targetPos, upVec) * XMMatrixOrthographicLH(40, 40, 1.0f, 100.0f); // lightView * lightProj
 		// xmmatrixortho: view width, view height, nearz, farz
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
-
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = (UINT)constBuff->GetDesc().Width;
-		D3D12_CPU_DESCRIPTOR_HANDLE basicDescriptorHeapHandle = _basicDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		UINT cbvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		basicDescriptorHeapHandle.ptr += cbvIncSize;
-
-		_dev->CreateConstantBufferView(&cbvDesc, basicDescriptorHeapHandle);
 	}
+	m_basicDescriptorHeap->RegistConstantBuffer(0, transformConstantBuffer);
+	m_basicDescriptorHeap->RegistConstantBuffer(1, sceneConstantBuffer);
 }
 
 void Application::WaitDrawDone() {
@@ -709,8 +540,11 @@ bool Application::Init() {
 	CreateCommandList(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
 	// LoadModel
-	_modelImporter = new FbxFileImporter(_dev);
+	_modelImporter = new FbxFileImporter();
 	_modelImporter->CreateFbxManager();
+	// 
+	m_rootSignature = new TDX12RootSignature();
+	m_rootSignature->Initialize(_dev.Get());
 
 	CreateDescriptorHeap();
 	CreateSwapChain();
@@ -721,7 +555,6 @@ bool Application::Init() {
 	// Create Fence
 	CheckError("CreateFence", _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
 	CreateCBV();
-	CreateRootSignature();
 	CreatePipelineState();
 	CreateCanvasPipelineState();
 	return true;
@@ -827,74 +660,6 @@ void Application::SetVerticesInfo() {
 	}
 }
 
-void Application::LoadTextureToDescriptorHeap(const wchar_t* textureFileName, ID3D12DescriptorHeap& descriptorHeap, int orderOfDescriptor) {
-	//WICテクスチャのロード
-	TexMetadata metadata = {};
-	ScratchImage scratchImg = {};
-	CheckError("LoadFromWICFile", LoadFromWICFile(textureFileName, WIC_FLAGS_NONE, &metadata, scratchImg));
-	auto img = scratchImg.GetImage(0, 0, 0);//生データ抽出
-
-	//WriteToSubresourceで転送する用のヒープ設定
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;//特殊な設定なのでdefaultでもuploadでもなく
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;//ライトバックで
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;//転送がL0つまりCPU側から直で
-	texHeapProp.CreationNodeMask = 0;//単一アダプタのため0
-	texHeapProp.VisibleNodeMask = 0;//単一アダプタのため0
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = metadata.format;//DXGI_FORMAT_R8G8B8A8_UNORM;//RGBAフォーマット
-	resDesc.Width = static_cast<UINT>(metadata.width);//幅
-	resDesc.Height = static_cast<UINT>(metadata.height);//高さ
-	resDesc.DepthOrArraySize = static_cast<uint16_t>(metadata.arraySize);//2Dで配列でもないので１
-	//resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // EGBA format
-	//resDesc.Width = 256;
-	//resDesc.Height = 256;
-	//resDesc.DepthOrArraySize = 1; // 2Dで配列でもないので1?
-	resDesc.SampleDesc.Count = 1;//通常テクスチャなのでアンチェリしない
-	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = static_cast<uint16_t>(metadata.mipLevels);//ミップマップしないのでミップ数は１つ
-	resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);//2Dテクスチャ用
-	//resDesc.MipLevels = 1; // みっぷマップしないのでみっぷ数は1
-	//resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2Dテクスチャ用
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//レイアウトについては決定しない
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//とくにフラグなし
-
-
-	// テクスチャ生成
-	ID3D12Resource* texbuff = nullptr;
-	CheckError("CreateTextureBufferResource", _dev->CreateCommittedResource(&texHeapProp, D3D12_HEAP_FLAG_NONE, &resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,//テクスチャ用(ピクセルシェーダから見る用)
-		nullptr, IID_PPV_ARGS(&texbuff)
-	));
-	CheckError("WriteToSubresource", texbuff->WriteToSubresource(0,
-		nullptr,//全領域へコピー
-		img->pixels,//元データアドレス
-		static_cast<UINT>(img->rowPitch),//1ラインサイズ
-		static_cast<UINT>(img->slicePitch)//全サイズ
-		//texturedata.data(),
-		//sizeof(TexRGBA) * 256,
-		//sizeof(TexRGBA) * texturedata.size()
-	));
-
-	//通常テクスチャビュー作成
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = metadata.format;//DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	// 画像データのRGBSの情報がそのまま捨て宇されたフォーマットに、データ通りの順序で割り当てられているか
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;//2Dテクスチャ
-	srvDesc.Texture2D.MipLevels = 1;//ミップマップは使用しないので1
-
-	// _basicDescriptorHeap: 0-CBV, 1-CBV, 2-SRV
-	D3D12_CPU_DESCRIPTOR_HANDLE descriptorHeapHandle = descriptorHeap.GetCPUDescriptorHandleForHeapStart();
-	for (int i = 0; i < orderOfDescriptor; ++i) {
-		descriptorHeapHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	}
-	_dev->CreateShaderResourceView(texbuff, &srvDesc, descriptorHeapHandle);
-
-}
-
-
 void Application::Run() {
 	ShowWindow(windowManager->GetHandle(), SW_SHOW);//ウィンドウ表示
 
@@ -925,34 +690,30 @@ void Application::Run() {
 //	rgba.B = rand() % 256;
 //	rgba.A = 255;//アルファは1.0という事にします。
 //}
-	LoadTextureToDescriptorHeap(L"C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/flower.jpg", *_basicDescriptorHeap.Get(), 2);
+
+	TDX12ShaderResource* shaderResource = new TDX12ShaderResource("C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/flower.jpg", _dev.Get());
+	m_basicDescriptorHeap->RegistShaderResource(2, shaderResource);
 
 	//D3D12_CONSTANT_BUFFER_VIEW_DESC materialCBVDesc;
 	//materialCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // マップ先を押してる
 	//materialCBVDesc.SizeInBytes = (sizeof(material) + 0xff) & ~0xff;
 	//_dev->CreateConstantBufferView(&materialCBVDesc, basicHeapHandle);
-	// こうやってやってたけど、本当？
-	//	materialDescHeap->GetCPUDescriptorHandleForHeapStart()); // 複数マテリアルの場合はディスクリプタヒープの先頭をずらしていく。
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	// 画像データのRGBSの情報がそのまま捨て宇されたフォーマットに、データ通りの順序で割り当てられているか
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;//ミップマップは使用しないので1
-	D3D12_CPU_DESCRIPTOR_HANDLE materialHeapHandle = _materialDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	unsigned int materialIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	for (auto& itr : _modelImporter->mesh_vertices) {
 		std::string mesh_name = itr.first;
 		std::cout << "Material Name: " << _modelImporter->mesh_material_name[mesh_name] << " Mesh Name is " << mesh_name << std::endl;
-		ID3D12Resource* materialTexBuff = _modelImporter->materialNameToTexture[_modelImporter->mesh_material_name[mesh_name]];
-		_dev->CreateShaderResourceView(materialTexBuff, &srvDesc, materialHeapHandle);
-		materialHeapHandle.ptr += materialIncSize;
+		const std::string& textureFilename = _modelImporter->m_materialNameToTextureName[_modelImporter->mesh_material_name[mesh_name]];
+		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
+		m_materialDescriptorHeap->RegistShaderResource(0, shaderResource);
 	}
+
+	m_basicDescriptorHeap->Commit(_dev.Get());
+	m_materialDescriptorHeap->Commit(_dev.Get());
 
 
 	MSG msg = {};
 	float angle = .0;
+
+	// Render系のCmdListとかContextみたいなのにまとめる
 	while (true) {
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
@@ -983,11 +744,11 @@ void Application::Run() {
 			_cmdList->OMSetRenderTargets(0, nullptr, false, &dsvHandle); // no need RT
 			_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-			_cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+			_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
 			_cmdList->SetPipelineState(_shadowPipelineState.Get());
 
-			_cmdList->SetDescriptorHeaps(1, _basicDescriptorHeap.GetAddressOf());
-			_cmdList->SetGraphicsRootDescriptorTable(0, _basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			_cmdList->SetDescriptorHeaps(1, m_basicDescriptorHeap->GetAddressOf());
+			_cmdList->SetGraphicsRootDescriptorTable(0, m_basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 			for (auto itr : _modelImporter->mesh_vertices) {
 				std::string name = itr.first;
@@ -1020,13 +781,12 @@ void Application::Run() {
 			_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 
-			_cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+			_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
 			_cmdList->SetPipelineState(_pipelineState.Get());
 
-			ID3D12DescriptorHeap* descHeaps[] = { _basicDescriptorHeap.Get() };
-			// ディスクリプタハンドルでまとめて指定したので、ここで一回結び付けるだけでいい
-			_cmdList->SetDescriptorHeaps(1, descHeaps);
-			_cmdList->SetGraphicsRootDescriptorTable(0, _basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			// TODO : ここをまとめてHeapだけ渡してできると良い...
+			_cmdList->SetDescriptorHeaps(1, m_basicDescriptorHeap->GetAddressOf());
+			_cmdList->SetGraphicsRootDescriptorTable(0, m_basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 			// materialDescHeap: CBV(material,今はない), SRV(テクスチャ)をマテリアルの数まとめたもの, これを
 			// root parameter: descriptor heapをGPUに送るために必要。
 
@@ -1035,9 +795,8 @@ void Application::Run() {
 			depthSRVHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle); // 2番目のheapがt2に結びつくようにしている
 
-			ID3D12DescriptorHeap* mdh[] = { _materialDescriptorHeap.Get() };
-			_cmdList->SetDescriptorHeaps(1, mdh);
-			auto materialHandle = _materialDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+			_cmdList->SetDescriptorHeaps(1, m_materialDescriptorHeap->GetAddressOf());
+			auto materialHandle = m_materialDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
 			auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 			for (auto itr : _modelImporter->mesh_vertices) {
 				std::string name = itr.first;

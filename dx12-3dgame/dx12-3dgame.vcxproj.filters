@@ -39,6 +39,15 @@
     <ClCompile Include="Renderer\Shader.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="Renderer\DX12ConstantBuffer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\DX12DescriptorHeap.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\DX12ShaderResource.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -63,6 +72,15 @@
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\Shader.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12ConstantBuffer.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12DescriptorHeap.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\DX12ShaderResource.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
   </ItemGroup>

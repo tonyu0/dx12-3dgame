@@ -10,7 +10,7 @@ struct Material;
 
 class FbxFileImporter {
 public:
-	FbxFileImporter(Microsoft::WRL::ComPtr<ID3D12Device> Device) : Device(Device) {
+	FbxFileImporter() {
 		for (int i = 0; i < 256; ++i) {
 			boneMatrices[i] = DirectX::XMMatrixIdentity();
 		}
@@ -31,11 +31,7 @@ private:
 		return path.substr(idx + 1, path.length() - idx - 1);
 	}
 	std::wstring GetWideStringFromString(const std::string& str);
-	ID3D12Resource* LoadTextureFromFile(std::string& texPath);
-
 	FbxScene* scene;
-	Microsoft::WRL::ComPtr<ID3D12Device> Device;
-	std::map<std::string, ID3D12Resource*> _resourceTable; // filename to ID3D12Resource
 	std::map<std::string, Material> raw_materials;
 
 	// Animation Parameters
@@ -47,7 +43,7 @@ public:
 	// めっちゃ遠回りなんだけど、mesh_name -> material_name -> texture実体
 	// 複数のmeshで同じテクスチャを使うことがある場合、flyweight patternを使うと良い。これはmapにfindしてあったら返す、なかったら作るみたいにすればいい.
 	std::map<std::string, std::string> mesh_material_name;
-	std::map<std::string, ID3D12Resource*> materialNameToTexture; // ポインタの方が良いか？
+	std::map<std::string, std::string> m_materialNameToTextureName;
 
 	struct BoneInfo {
 		FbxNode* meshNode;
