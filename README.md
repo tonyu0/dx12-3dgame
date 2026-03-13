@@ -1,2 +1,17 @@
 # dx12-3dgame
-3D game with directX12 [WIP]
+
+## Build setup
+
+- Download FBX SDK from:
+https://aps.autodesk.com/developer/overview/fbx-sdk
+
+- Extract fbx-sdk to external
+
+- final location of external libraries
+```
+external
+├──DirectX-Headers
+├──DirectXTex
+└──fbxsdk
+```
+

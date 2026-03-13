@@ -77,7 +77,7 @@ float4 texColor = materialTex.Sample(materialSampler, input.uv);
 
 // tposxyz / tpos.w
 float3 posFromLightVP = input.tpos.xyz / input.tpos.w; // 投影行列は、wで割ることにより[-1,1],[-1,1],[0,1]に正規化される仕様, SV_POSITIONの場合はラスタライザがこれをやる
-float2 shadowUV = (posFromLightVP + float2(1, -1)) * float2(0.5, -0.5);
+float2 shadowUV = (posFromLightVP.xy + float2(1, -1)) * float2(0.5, -0.5);
 //float depthFromLight = depthTex.Sample(smp, shadowUV);
 //float shadowWeight = 1.0f;
 //if (depthFromLight < posFromLightVP.z - 0.001f) { // bias 値を引くことで、計算誤差の範囲外、シャドウ阿久根を防ぐ

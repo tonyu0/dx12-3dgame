@@ -28,7 +28,7 @@ void EnableDebugLayer() {
 
 void Application::CheckError(LPCSTR msg, HRESULT result) {
 	if (FAILED(result)) {
-		std::cout << msg << " is BAD!!!!!" << std::endl;
+		std::cerr << msg << " is BAD!!!!!" << std::endl;
 		if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
 			::OutputDebugStringA("FILE NOT FOUND!!!");
 		}
@@ -40,12 +40,12 @@ void Application::CheckError(LPCSTR msg, HRESULT result) {
 			OutputDebugStringA(errstr.c_str());
 		}
 		else if (result == HRESULT_FROM_WIN32(E_OUTOFMEMORY)) {
-			std::cout << "Memory leak" << std::endl;
+			std::cerr << "Memory leak" << std::endl;
 		}
 		exit(1);
 	}
 	else {
-		std::cout << msg << " is OK!!!" << std::endl;
+		std::cerr << msg << " is OK!!!" << std::endl;
 	}
 }
 
@@ -565,10 +565,10 @@ void Application::SetVerticesInfo() {
 	D3D12_RESOURCE_DESC resdesc = {};
 
 	CanvasVertex canvas[4] = {
-		{{-1,-1,0.1},{0,1}}, // bottom left
-		{{-1,1,0.1},{0,0}}, // top left
-		{{1,-1,0.1},{1,1}}, // bottom right
-		{{1,1,0.1}, {1,0}}, // bottom right
+		{{-1.f,-1.f,0.1f},{0.f,1.f}}, // bottom left
+		{{-1.f,1.f,0.1f},{0.f,0.f}}, // top left
+		{{1.f,-1.f,0.1f},{1.f,1.f}}, // bottom right
+		{{1.f,1.f,0.1f}, {1.f,0.f}}, // bottom right
 	};
 
 	auto canvasHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -691,19 +691,31 @@ void Application::Run() {
 //	rgba.A = 255;//アルファは1.0という事にします。
 //}
 
-	TDX12ShaderResource* shaderResource = new TDX12ShaderResource("C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/flower.jpg", _dev.Get());
-	m_basicDescriptorHeap->RegistShaderResource(2, shaderResource);
+	// Register Texture to SRV
+	TDX12ShaderResource* shaderResource = new TDX12ShaderResource("../dx12-3dgame/assets/flower.jpg", _dev.Get());
+	// TODO: when the resource cannot be read, new should fail?
+	if (shaderResource->IsValidShaderResource()) {
+		m_basicDescriptorHeap->RegistShaderResource(2, shaderResource);
+	}
+
 
 	//D3D12_CONSTANT_BUFFER_VIEW_DESC materialCBVDesc;
 	//materialCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // マップ先を押してる
 	//materialCBVDesc.SizeInBytes = (sizeof(material) + 0xff) & ~0xff;
 	//_dev->CreateConstantBufferView(&materialCBVDesc, basicHeapHandle);
+
+	// Register FBX Model to SRV
 	for (auto& itr : _modelImporter->mesh_vertices) {
 		std::string mesh_name = itr.first;
 		std::cout << "Material Name: " << _modelImporter->mesh_material_name[mesh_name] << " Mesh Name is " << mesh_name << std::endl;
 		const std::string& textureFilename = _modelImporter->m_materialNameToTextureName[_modelImporter->mesh_material_name[mesh_name]];
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
 		m_materialDescriptorHeap->RegistShaderResource(0, shaderResource);
+	}
+
+	if (m_basicDescriptorHeap->GetRegisteredResourceNum() == 0 || m_materialDescriptorHeap->GetRegisteredResourceNum() == 0) {
+		std::cerr << "[LOAD ERROR] Model data or Material data seems to be unloaded." << std::endl;
+		exit(EXIT_FAILURE);
 	}
 
 	m_basicDescriptorHeap->Commit(_dev.Get());

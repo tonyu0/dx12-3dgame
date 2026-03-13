@@ -106,17 +106,18 @@ void FbxFileImporter::LoadMesh(FbxMesh* mesh) {
 		int materialCount = mesh->GetElementMaterialCount();
 		for (int i = 0; i < materialCount; ++i) {
 			std::cout << i << " th material name is " << mesh->GetElementMaterial(i)->GetName() << std::endl;
-		}
 
-		// Mesh側のマテリアル情報を取得
-		FbxLayerElementMaterial* material = mesh->GetElementMaterial(0);
-		// FbxSurfaceMaterialのインデックスバッファからインデックスを取得
-		int index = material->GetIndexArray().GetAt(0);
-		FbxSurfaceMaterial* surface_material = mesh->GetNode()->GetSrcObject<FbxSurfaceMaterial>(index);
-		if (surface_material != nullptr)
-			mesh_material_name[meshName] = surface_material->GetName();
-		else
-			mesh_material_name[meshName] = "";
+			// Mesh側のマテリアル情報を取得
+			FbxLayerElementMaterial* material = mesh->GetElementMaterial(i);
+			// FbxSurfaceMaterialのインデックスバッファからインデックスを取得
+			int index = material->GetIndexArray().GetAt(i);
+			FbxSurfaceMaterial* surface_material = mesh->GetNode()->GetSrcObject<FbxSurfaceMaterial>(index);
+			if (surface_material != nullptr) {
+				mesh_material_name[meshName] = surface_material->GetName();
+			} else {
+				mesh_material_name[meshName] = "";
+			}
+		}
 	}
 }
 
@@ -154,7 +155,7 @@ void FbxFileImporter::LoadMaterial(FbxSurfaceMaterial* material)
 					auto texture = prop.GetSrcObject<FbxFileTexture>(0);
 					// ファイル名を取得
 					std::string file_path = texture->GetRelativeFileName();
-					file_path = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/FBX/" + file_path.substr(file_path.rfind('\\') + 1, file_path.length());
+					file_path = "../dx12-3dgame/assets/FBX/" + file_path.substr(file_path.rfind('\\') + 1, file_path.length());
 					std::cout << "LOAD TEXTURE: " << file_path << std::endl;
 					// texbuff(実体)を受け取る。WriteToSubresource後
 					m_materialNameToTextureName[material->GetName()] = file_path;
@@ -251,9 +252,8 @@ void FbxFileImporter::CreateFbxManager() {
 	scene = FbxScene::Create(manager, "");
 
 	//データをインポート
-	//const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/model/WhipperNude.fbx";
-	//const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/luoli-run/source/luoli_run_triangle.fbx";
-	const char* filename = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/alice/source/mana3.fbx";
+	//const char* filename = "../dx12-3dgame/assets/WhipperNude/model/WhipperNude.fbx";
+	const char* filename = "../dx12-3dgame/assets/Alicia/Alicia.fbx";
 	FbxImporter* importer = FbxImporter::Create(manager, "");
 	importer->Initialize(filename, -1, manager->GetIOSettings());
 	int maj, min, rev;
@@ -274,24 +274,26 @@ void FbxFileImporter::CreateFbxManager() {
 	FbxArray<FbxString*> AnimStackNameArray;
 	int AnimStackNumber = 0; // select animation
 	scene->FillAnimStackNameArray(AnimStackNameArray);
-	for (int i = 0; i < AnimStackNameArray.Size(); ++i) {
-		std::cout << *AnimStackNameArray[i] << std::endl;
-	}
-	FbxAnimStack* AnimationStack = scene->FindMember<FbxAnimStack>(AnimStackNameArray[0]->Buffer());
-	scene->SetCurrentAnimationStack(AnimationStack); // set this animation stack to use
+	if (AnimStackNameArray.Size() > 0) {
+		for (int i = 0; i < AnimStackNameArray.Size(); ++i) {
+			std::cout << *AnimStackNameArray[i] << std::endl;
+		}
+		FbxAnimStack* AnimationStack = scene->FindMember<FbxAnimStack>(AnimStackNameArray[0]->Buffer());
+		scene->SetCurrentAnimationStack(AnimationStack); // set this animation stack to use
 
-	FbxTakeInfo* takeInfo = scene->GetTakeInfo(*(AnimStackNameArray[AnimStackNumber]));
-	animStartTime = takeInfo->mLocalTimeSpan.GetStart();
-	animStopTime = takeInfo->mLocalTimeSpan.GetStop();
-	frameTime.SetTime(0, 0, 0, 1, 0, scene->GetGlobalSettings().GetTimeMode());
-	timeCount = animStartTime;
+		FbxTakeInfo* takeInfo = scene->GetTakeInfo(*(AnimStackNameArray[AnimStackNumber]));
+		animStartTime = takeInfo->mLocalTimeSpan.GetStart();
+		animStopTime = takeInfo->mLocalTimeSpan.GetStop();
+		frameTime.SetTime(0, 0, 0, 1, 0, scene->GetGlobalSettings().GetTimeMode());
+		timeCount = animStartTime;
+	}
 
 	int materialCount = scene->GetMaterialCount();
 	for (int i = 0; i < materialCount; ++i) {
 		FbxSurfaceMaterial* material = scene->GetMaterial(i);
 		std::cout << i << " th material name is " << material->GetName() << '\n';
-		//std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
-		std::string texturePath = "C:/Users/sator/source/repos/dx12-3dgame/dx12-3dgame/assets/alice/textures/" + (std::string)material->GetName() + ".png";
+		//std::string texturePath = "../dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
+		std::string texturePath = "../dx12-3dgame/assets/alice/textures/" + (std::string)material->GetName() + ".png";
 		m_materialNameToTextureName[material->GetName()] = texturePath;
 		LoadMaterial(material);
 	}

@@ -14,6 +14,9 @@ public:
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart() {
 		return m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(); // ìØè„
 	}
+	int GetRegisteredResourceNum() {
+		return m_numConstantBuffer + m_numShaderResource + m_numUavResource;
+	}
 private:
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_descriptorHeap = nullptr;
 	int m_numShaderResource = 0;
