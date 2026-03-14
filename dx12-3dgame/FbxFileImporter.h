@@ -10,7 +10,7 @@ struct Material;
 
 class FbxFileImporter {
 public:
-	FbxFileImporter() {
+	FbxFileImporter(const std::string& inFbxFileName, const std::string& inTextureDirectoryName): fbxFileName(inFbxFileName), textureDirectoryName(inTextureDirectoryName) {
 		for (int i = 0; i < 256; ++i) {
 			boneMatrices[i] = DirectX::XMMatrixIdentity();
 		}
@@ -36,6 +36,10 @@ private:
 
 	// Animation Parameters
 	FbxTime frameTime, timeCount, animStartTime, animStopTime;
+
+	// data file info
+	std::string fbxFileName;
+	std::string textureDirectoryName;
 
 public:
 	std::map<std::string, std::vector<Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。

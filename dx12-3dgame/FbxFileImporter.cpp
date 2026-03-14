@@ -155,7 +155,8 @@ void FbxFileImporter::LoadMaterial(FbxSurfaceMaterial* material)
 					auto texture = prop.GetSrcObject<FbxFileTexture>(0);
 					// ファイル名を取得
 					std::string file_path = texture->GetRelativeFileName();
-					file_path = "../dx12-3dgame/assets/FBX/" + file_path.substr(file_path.rfind('\\') + 1, file_path.length());
+					file_path = textureDirectoryName + file_path.substr(file_path.rfind('\\') + 1, file_path.length());
+
 					std::cout << "LOAD TEXTURE: " << file_path << std::endl;
 					// texbuff(実体)を受け取る。WriteToSubresource後
 					m_materialNameToTextureName[material->GetName()] = file_path;
@@ -252,10 +253,8 @@ void FbxFileImporter::CreateFbxManager() {
 	scene = FbxScene::Create(manager, "");
 
 	//データをインポート
-	//const char* filename = "../dx12-3dgame/assets/WhipperNude/model/WhipperNude.fbx";
-	const char* filename = "../dx12-3dgame/assets/Alicia/Alicia.fbx";
 	FbxImporter* importer = FbxImporter::Create(manager, "");
-	importer->Initialize(filename, -1, manager->GetIOSettings());
+	importer->Initialize(fbxFileName.c_str(), -1, manager->GetIOSettings());
 	int maj, min, rev;
 	importer->GetFileVersion(maj, min, rev);
 	std::cout << maj << " " << min << " " << rev << " "
@@ -276,7 +275,7 @@ void FbxFileImporter::CreateFbxManager() {
 	scene->FillAnimStackNameArray(AnimStackNameArray);
 	if (AnimStackNameArray.Size() > 0) {
 		for (int i = 0; i < AnimStackNameArray.Size(); ++i) {
-			std::cout << *AnimStackNameArray[i] << std::endl;
+			std::cout << i << " th Animation Name is " << * AnimStackNameArray[i] << std::endl;
 		}
 		FbxAnimStack* AnimationStack = scene->FindMember<FbxAnimStack>(AnimStackNameArray[0]->Buffer());
 		scene->SetCurrentAnimationStack(AnimationStack); // set this animation stack to use
@@ -292,8 +291,8 @@ void FbxFileImporter::CreateFbxManager() {
 	for (int i = 0; i < materialCount; ++i) {
 		FbxSurfaceMaterial* material = scene->GetMaterial(i);
 		std::cout << i << " th material name is " << material->GetName() << '\n';
-		//std::string texturePath = "../dx12-3dgame/assets/WhipperNude/texture/middle/" + (std::string)mesh->GetName() + ".tga";
-		std::string texturePath = "../dx12-3dgame/assets/alice/textures/" + (std::string)material->GetName() + ".png";
+		std::string texturePath = textureDirectoryName + (std::string)material->GetName() + ".tga";
+		std::cout << i << " th material texture is " << texturePath << '\n';
 		m_materialNameToTextureName[material->GetName()] = texturePath;
 		LoadMaterial(material);
 	}

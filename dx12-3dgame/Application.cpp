@@ -539,8 +539,13 @@ bool Application::Init() {
 	CreateDevice();
 	CreateCommandList(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-	// LoadModel
-	_modelImporter = new FbxFileImporter();
+	// TODO: need to organize model file locations
+	// Model file
+	std::string fbxFileName = "../dx12-3dgame/assets/model/WhipperNude.fbx";
+	// Texture directory
+	std::string textureDirectoryName = "../dx12-3dgame/assets/texture/";
+
+	_modelImporter = new FbxFileImporter(fbxFileName, textureDirectoryName);
 	_modelImporter->CreateFbxManager();
 	// 
 	m_rootSignature = new TDX12RootSignature();
@@ -620,6 +625,8 @@ void Application::SetVerticesInfo() {
 		ID3D12Resource* vertBuff = nullptr;
 		// D3D12_HEAP_PROPERTIES unko = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);// UPLOADヒープとして 
 		// D3D12_RESOURCE_DESC unti = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));// サイズに応じて適切な設定になる便利
+		// CreateCommittedResource(): prepare the resource GPU can handle
+		// Descriptor: in general, it is a descript for GPU about where the resource is or what the type of the resource is or something
 		CheckError("CreateVertexBufferResource", _dev->CreateCommittedResource(
 			&heapprop,
 			D3D12_HEAP_FLAG_NONE,
