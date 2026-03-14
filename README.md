@@ -1,4 +1,14 @@
-# dx12-3dgame
+# DirectX12 renderer implementation from scratch.
+
+## Features
+- FBX model loading
+- Root signature design
+- Descriptor heap management
+- Shadow mapping
+- GPU skinning (planned)
+- Deferred rendering (planned)
+- PBR (planned)
+- IBL (planned)
 
 ## Build setup
 
@@ -15,3 +25,4 @@ external
 └──fbxsdk
 ```
 
+- open dx12-3dgame.sln and build
