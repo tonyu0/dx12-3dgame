@@ -4,6 +4,7 @@
 class TDX12ShaderResource {
 public:
 	TDX12ShaderResource() = default;
+	TDX12ShaderResource(ID3D12Resource* inResource) : m_shaderResource(inResource) {}
 	TDX12ShaderResource(const std::string& textureFileName, ID3D12Device* device);
 	void Initialize(const std::string& textureFileName, ID3D12Device* device); // テクスチャパスからResource初期化
 	void CreateView(D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle, ID3D12Device* device);
@@ -40,5 +41,5 @@ public:
 	}
 private:
 	ID3D12Resource* m_shaderResource = nullptr;
-	DirectX::TexMetadata m_textureMetadata;
+	DirectX::TexMetadata m_textureMetadata = {};
 };

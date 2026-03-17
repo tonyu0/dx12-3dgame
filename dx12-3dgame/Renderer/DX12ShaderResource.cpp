@@ -40,15 +40,15 @@ void TDX12ShaderResource::Initialize(const std::string& textureFileName, ID3D12D
 
 	D3D12_RESOURCE_DESC resDesc = {};
 	resDesc.Format = m_textureMetadata.format;
-	resDesc.Width = static_cast<UINT>(m_textureMetadata.width);//幅
-	resDesc.Height = static_cast<UINT>(m_textureMetadata.height);//高さ
+	resDesc.Width = static_cast<UINT>(m_textureMetadata.width);
+	resDesc.Height = static_cast<UINT>(m_textureMetadata.height);
 	resDesc.DepthOrArraySize = static_cast<UINT16>(m_textureMetadata.arraySize);
-	resDesc.SampleDesc.Count = 1;//通常テクスチャなのでアンチェリしない
+	resDesc.SampleDesc.Count = 1;
 	resDesc.SampleDesc.Quality = 0;//
-	resDesc.MipLevels = static_cast<UINT16>(m_textureMetadata.mipLevels);//ミップマップしないのでミップ数は１つ
+	resDesc.MipLevels = static_cast<UINT16>(m_textureMetadata.mipLevels);
 	resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(m_textureMetadata.dimension);
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;//レイアウトについては決定しない
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;//とくにフラグなし
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	result = device->CreateCommittedResource(
 		&texHeapProp,

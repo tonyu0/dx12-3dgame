@@ -317,9 +317,7 @@ void Application::CreatePipelineState() {
 		gpipeline.VS = vs.GetShaderBytecode();
 		gpipeline.PS = ps.GetShaderBytecode();
 
-		// sample maskよくわからんけどデフォでおk？
 		gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;//中身は0xffffffff
-		//ハルシェーダ、ドメインシェーダ、ジオメトリシェーダは設定しない
 		gpipeline.HS.BytecodeLength = 0;
 		gpipeline.HS.pShaderBytecode = nullptr;
 		gpipeline.DS.BytecodeLength = 0;
@@ -328,10 +326,10 @@ void Application::CreatePipelineState() {
 		gpipeline.GS.pShaderBytecode = nullptr;
 
 		// ラスタライザの設定
-		gpipeline.RasterizerState.MultisampleEnable = false;//まだアンチェリは使わない
-		gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;//カリングしない
-		gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;//中身を塗りつぶす
-		gpipeline.RasterizerState.DepthClipEnable = true;//深度方向のクリッピングは有効に
+		gpipeline.RasterizerState.MultisampleEnable = false;
+		gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+		gpipeline.RasterizerState.DepthClipEnable = true;
 		//残り
 		gpipeline.RasterizerState.FrontCounterClockwise = false;
 		gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
@@ -346,8 +344,8 @@ void Application::CreatePipelineState() {
 		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;//0～1に正規化されたRGBA
 
 		//深度ステンシル
-		gpipeline.DepthStencilState.DepthEnable = true;//深度
-		gpipeline.DepthStencilState.StencilEnable = false;//あとで
+		gpipeline.DepthStencilState.DepthEnable = true;
+		gpipeline.DepthStencilState.StencilEnable = false;
 		gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 		gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 		gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -476,19 +474,6 @@ void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DES
 	CheckError("CreateGraphicsPipelineState", _dev->CreateGraphicsPipelineState(&gpipelineDesc, IID_PPV_ARGS(_shadowPipelineState.ReleaseAndGetAddressOf())));
 }
 
-void Application::CreateDescriptorHeap() {
-	m_basicDescriptorHeap = new TDX12DescriptorHeap();
-	m_materialDescriptorHeap = new TDX12DescriptorHeap();
-
-	// Descriptor heap for RTV
-	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	descHeapDesc.NumDescriptors = 2; // 表裏
-	CheckError("CreateDescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_rtvHeaps.ReleaseAndGetAddressOf())));
-
-}
-
 void Application::CreateCBV() {
 	// TODO : ここらへんinputから動かせるようにする　分かるように左上にprint
 	XMMATRIX mMatrix = XMMatrixIdentity();
@@ -522,8 +507,8 @@ void Application::CreateCBV() {
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
 	}
-	m_basicDescriptorHeap->RegistConstantBuffer(0, transformConstantBuffer);
-	m_basicDescriptorHeap->RegistConstantBuffer(1, sceneConstantBuffer);
+	m_resourceDescriptorHeap->RegistConstantBuffer(0, transformConstantBuffer);
+	m_resourceDescriptorHeap->RegistConstantBuffer(1, sceneConstantBuffer);
 }
 
 void Application::WaitDrawDone() {
@@ -565,7 +550,13 @@ bool Application::Init() {
 	m_rootSignature = new TDX12RootSignature();
 	m_rootSignature->Initialize(_dev.Get());
 
-	CreateDescriptorHeap();
+	{ // Descriptor heap for RTV
+		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		descHeapDesc.NumDescriptors = 2; // 表裏
+		CheckError("Create RTV DescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_rtvHeaps.ReleaseAndGetAddressOf())));
+	}
 	CreateSwapChain();
 	CreateDepthStencilView();
 
@@ -573,7 +564,10 @@ bool Application::Init() {
 
 	// Create Fence
 	CheckError("CreateFence", _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
-	CreateCBV();
+	{
+		m_resourceDescriptorHeap = new TDX12DescriptorHeap();
+		CreateCBV();
+	}
 	CreatePipelineState();
 	CreateCanvasPipelineState();
 	return true;
@@ -724,16 +718,14 @@ void Application::Run() {
 		const std::string& textureFilename = std::string("../dx12-3dgame/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
-		m_materialDescriptorHeap->RegistShaderResource(0, shaderResource);
+		m_resourceDescriptorHeap->RegistShaderResource(0, shaderResource);
 	}
 
-	if (m_basicDescriptorHeap->GetRegisteredResourceNum() == 0 || m_materialDescriptorHeap->GetRegisteredResourceNum() == 0) {
+	if (m_resourceDescriptorHeap->GetRegisteredResourceNum() == 0) {
 		std::cerr << "[LOAD ERROR] Model data or Material data seems to be unloaded." << std::endl;
 		exit(EXIT_FAILURE);
 	}
-
-	m_basicDescriptorHeap->Commit(_dev.Get());
-	m_materialDescriptorHeap->Commit(_dev.Get());
+	m_resourceDescriptorHeap->Commit(_dev.Get());
 
 
 	MSG msg = {};
@@ -742,23 +734,30 @@ void Application::Run() {
 	std::chrono::steady_clock::time_point previousFrameTime = std::chrono::high_resolution_clock::now();
 	// Render系のCmdListとかContextみたいなのにまとめる
 	while (true) {
-		// Deltatime
-		std::chrono::steady_clock::time_point currentFrameTime = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> deltaTime = currentFrameTime - previousFrameTime;
-		previousFrameTime = currentFrameTime;
-
-
-
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+		{ // check if application ends
+			if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+			if (msg.message == WM_QUIT) { // WM_QUITになるのは終了直前？
+				break;
+			}
 		}
-		if (msg.message == WM_QUIT) { // WM_QUITになるのは終了直前？
-			break;
+
+		{ // Deltatime
+			std::chrono::steady_clock::time_point currentFrameTime = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> deltaTime = currentFrameTime - previousFrameTime;
+			previousFrameTime = currentFrameTime;
+
+			// Update bone matrices
+			_modelImporter->UpdateBoneMatrices(deltaTime.count());
+			// Upload bone CBV after updating bone matrices
+			std::copy(_modelImporter->boneMatrices, _modelImporter->boneMatrices + 256, _mapTransformMatrix->bones);
 		}
+
 
 		angle += 0.01f;
-		_mapTransformMatrix->world = XMMatrixRotationX(0.) * XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
+		_mapTransformMatrix->world = XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
 		_mapSceneMatrix->view = _vMatrix;
 		_mapSceneMatrix->proj = _pMatrix;
 
@@ -766,12 +765,7 @@ void Application::Run() {
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorrect);
 
-		// Here Update Vertices
-		_modelImporter->UpdateBoneMatrices(deltaTime.count());
-		// Upload bone CBV
-		std::copy(_modelImporter->boneMatrices, _modelImporter->boneMatrices + 256, _mapTransformMatrix->bones);
-		// here, for shadow map light depth
-		{
+		{ // 0. Shadow pipeline (shadow map light depth)
 			// depthはbarrierとかいらない?
 			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 			dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
@@ -781,8 +775,8 @@ void Application::Run() {
 			_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
 			_cmdList->SetPipelineState(_shadowPipelineState.Get());
 
-			_cmdList->SetDescriptorHeaps(1, m_basicDescriptorHeap->GetAddressOf());
-			_cmdList->SetGraphicsRootDescriptorTable(0, m_basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			_cmdList->SetDescriptorHeaps(1, m_resourceDescriptorHeap->GetAddressOf());
+			_cmdList->SetGraphicsRootDescriptorTable(0, m_resourceDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 			for (auto itr : _modelImporter->mesh_vertices) {
 				std::string name = itr.first;
@@ -801,49 +795,44 @@ void Application::Run() {
 				D3D12_RESOURCE_STATE_RENDER_TARGET
 			);
 			_cmdList->ResourceBarrier(1, &beforeDrawTransitionDesc);
-			// 第二引数は、複数渡せる。バリア構造体の配列の先頭アドレス。
-			// ↓　barrierの知らないoption
-			//barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION; // 遷移
-			//barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			//barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-			D3D12_CPU_DESCRIPTOR_HANDLE postProcessRTV = _postProcessRTVHeap->GetCPUDescriptorHandleForHeapStart();
-			_cmdList->OMSetRenderTargets(1, &postProcessRTV, false, &dsvHandle);
-			// draw
-			float clearColor[] = { 1.0f,1.0f,1.0f,1.0f };
-			_cmdList->ClearRenderTargetView(postProcessRTV, clearColor, 0, nullptr);
-			_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
+			{
+				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
+				D3D12_CPU_DESCRIPTOR_HANDLE postProcessRTV = _postProcessRTVHeap->GetCPUDescriptorHandleForHeapStart();
+				_cmdList->OMSetRenderTargets(1, &postProcessRTV, false, &dsvHandle);
+				// draw
+				float clearColor[] = { 1.0f,1.0f,1.0f,1.0f };
+				_cmdList->ClearRenderTargetView(postProcessRTV, clearColor, 0, nullptr);
+				_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+				_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
+				_cmdList->SetPipelineState(_pipelineState.Get());
+			}
 
-			_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
-			_cmdList->SetPipelineState(_pipelineState.Get());
+			{// Set Resource DescriptorHeap
+				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(m_resourceDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+				auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				_cmdList->SetDescriptorHeaps(1, m_resourceDescriptorHeap->GetAddressOf());
 
-			// TODO : ここをまとめてHeapだけ渡してできると良い...
-			_cmdList->SetDescriptorHeaps(1, m_basicDescriptorHeap->GetAddressOf());
-			_cmdList->SetGraphicsRootDescriptorTable(0, m_basicDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-			// materialDescHeap: CBV(material,今はない), SRV(テクスチャ)をマテリアルの数まとめたもの, これを
-			// root parameter: descriptor heapをGPUに送るために必要。
+				_cmdList->SetGraphicsRootDescriptorTable(0, gpuHandle);
+				gpuHandle.ptr += srvIncSize * 2; // b0, b1
+				// root parameter: descriptor heapをGPUに送るために必要。
 
-			_cmdList->SetDescriptorHeaps(1, _depthSRVHeap.GetAddressOf());
-			D3D12_GPU_DESCRIPTOR_HANDLE depthSRVHandle = _depthSRVHeap->GetGPUDescriptorHandleForHeapStart();
-			depthSRVHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle); // 2番目のheapがt2に結びつくようにしている
+				//D3D12_GPU_DESCRIPTOR_HANDLE depthSRVHandle = _depthSRVHeap->GetGPUDescriptorHandleForHeapStart();
+				//_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle); // 2番目のheapがt2に結びつくようにしている
 
-			_cmdList->SetDescriptorHeaps(1, m_materialDescriptorHeap->GetAddressOf());
-			auto materialHandle = m_materialDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-			auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			for (auto itr : _modelImporter->mesh_vertices) {
-				std::string name = itr.first;
-				// そのあと、ルートパラメーターとビューを登録。b1として参照できる
-				// root parameterのうち、何番目か
-				_cmdList->SetGraphicsRootDescriptorTable(1, materialHandle);
-				_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
-				_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
-				// _cmdList->DrawInstanced(4, 1, 0, 0);
-				_cmdList->DrawIndexedInstanced((UINT)_modelImporter->mesh_indices[name].size(), 2, 0, 0, 0); // InstanceID=0:model, InstanceID=1:shadow
-				//_cmdList->DrawInstanced(itr.second.size(), 1, 0, 0);
-				materialHandle.ptr += srvIncSize;
+				for (auto itr : _modelImporter->mesh_vertices) {
+					std::string name = itr.first;
+					// そのあと、ルートパラメーターとビューを登録。b1として参照できる
+					// root parameterのうち、何番目か
+					_cmdList->SetGraphicsRootDescriptorTable(1, gpuHandle);
+					_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+					_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
+					_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
+					// _cmdList->DrawInstanced(4, 1, 0, 0);
+					_cmdList->DrawIndexedInstanced((UINT)_modelImporter->mesh_indices[name].size(), 2, 0, 0, 0); // InstanceID=0:model, InstanceID=1:shadow
+					//_cmdList->DrawInstanced(itr.second.size(), 1, 0, 0);
+					gpuHandle.ptr += srvIncSize;
+				}
 			}
 			// draw end
 			auto afterDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -858,7 +847,6 @@ void Application::Run() {
 			// Transition RTV state from PRESENT to RENDER
 			UINT bbIdx = _swapchain.Get()->GetCurrentBackBufferIndex();
 			auto rtvH = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 			if (bbIdx) rtvH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 			D3D12_RESOURCE_BARRIER beforeDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -879,6 +867,7 @@ void Application::Run() {
 			//_cmdList->SetGraphicsRootDescriptorTable(0, _depthSRVHeap->GetGPUDescriptorHandleForHeapStart());
 
 
+			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 			_cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
 			_cmdList->SetGraphicsRootSignature(_canvasRootSignature.Get());
 			_cmdList->SetPipelineState(_canvasPipelineState.Get());

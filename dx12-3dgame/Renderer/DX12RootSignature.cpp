@@ -15,8 +15,8 @@ void TDX12RootSignature::Initialize(ID3D12Device* device) {
 
 	// ルーﾄシグネチャにルートパラメーターを設定 それがディスクリプタレンジ。
 	// まとめると、rangeで起点のスロットと種別を指定したものを複数root parameterのdescriptor rangeに渡すと、まとめてシェーダーに指定できる。
-	D3D12_DESCRIPTOR_RANGE descTblRange[5] = {}; // 読まれただけで結び付けられなかったテクスチャはどうなるんだろう。。。 
-	// テーブルに一つもヒープっを結び付けなくてもクラッシュもしないらしい。
+	D3D12_DESCRIPTOR_RANGE descTblRange[5] = {};
+	// 
 	//Rangeという情報は、シェーダのレジスタ番号n番からx個のレジスタに、Heapのm番からのDescriptorを割り当てます、という情報です。
 		//もちろんレジスタの種類が違えばRangeも違ってくるので、現在の例ではマテリアル用のDescriptorHeapに対して1つのDescriptorTableがあり、そいつがRangeを2つ持つことになります。
 	descTblRange[0].NumDescriptors = 2;
@@ -25,9 +25,11 @@ void TDX12RootSignature::Initialize(ID3D12Device* device) {
 	descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	descTblRange[1].NumDescriptors = 1;
 	descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange[1].BaseShaderRegister = 0; // t0
+	descTblRange[1].BaseShaderRegister = 0; // t0 ~ t2 (tex, materialTex, depthTex of BasicShader.hlsl)
 	descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	// Material
+	// Material : RootParameter[1]に紐づいているので、描画時にSetGraphicsRootDescriptorTable(1, gpuHandle)というように指定し、t1をメッシュごとに入れ替える
+	// SetGraphicsRootDescriptorTable(rootparamidx, handle)はrootparamindexで指示されるRootParameterに紐づいたRangeの先頭を考える。
+	// t1はメッシュテクスチャであり、描画するメッシュごとにテクスチャを差し替えたいので、レンジを切り分ける。おそらく更新頻度が異なるものはRootParam,Rangeを切り分けて、そうでないものはまとめて負荷軽減。
 	descTblRange[2].NumDescriptors = 1;
 	descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	descTblRange[2].BaseShaderRegister = 1; // t1
@@ -40,13 +42,8 @@ void TDX12RootSignature::Initialize(ID3D12Device* device) {
 
 
 	// レンジ: ヒープ上に同じ種類のでスクリプタが連続している場合、まとめて指定できる
-	// シェーダーリソースと定数バッファーを同一パラメーターとして扱う。
-	// ルートパラメーターを全シェーダーから参照可能にする。
-	// SRVとCBVが連続しており、レンジも連続してるため←この理由がよくわからん
-	// 8章で、今までは行列だけだったが、マテリアルも読み込むため、るーとぱらめーたーを増設。
-
-	// 以下のノリでCBVは渡せるっぽいので、一度ちゃんと起動できたら試してみる。
 	//root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	// ルートパラメーターを全シェーダーから参照可能にする。
 	//root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	//root_parameters[0].Descriptor.ShaderRegister = 0;
 	//root_parameters[0].Descriptor.RegisterSpace = 0;

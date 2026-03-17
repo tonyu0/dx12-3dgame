@@ -102,9 +102,7 @@ private:
 	class TDX12RootSignature* m_rootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
-	// basicDescHeap: matrix, textureを結び付けるディスクリプタヒープ
-	class TDX12DescriptorHeap* m_basicDescriptorHeap = nullptr;
-	class TDX12DescriptorHeap* m_materialDescriptorHeap = nullptr;
+	class TDX12DescriptorHeap* m_resourceDescriptorHeap = nullptr;
 
 	// for Post Process Additional Path
 	Microsoft::WRL::ComPtr<ID3D12Resource> _postProcessResource = nullptr;
@@ -130,7 +128,6 @@ private:
 	void CreatePipelineState();
 	void CreateCanvasPipelineState();
 	void CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc);
-	void CreateDescriptorHeap();
 	void CreateCBV();
 	void CreatePostProcessResourceAndView();
 
