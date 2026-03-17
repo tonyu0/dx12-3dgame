@@ -26,7 +26,7 @@ void FbxFileImporter::LoadMesh(aiMesh* mesh) {
 
 			if (mesh->HasTextureCoords(0)) {
 				auto uv = mesh->mTextureCoords[0][v];
-				vert.uv = { uv.x, 1.f - uv.y };
+				vert.uv = { uv.x, uv.y };
 			}
 			vertices.push_back(vert);
 		}
@@ -125,8 +125,8 @@ bool FbxFileImporter::CreateFbxManager(const std::string& inFbxFileName) {
 	return true;
 }
 
-void FbxFileImporter::UpdateBoneMatrices() {
-	mAnimCurrentTicks = fmod(mAnimCurrentTicks + 1., mAnimDurationTicks);
+void FbxFileImporter::UpdateBoneMatrices(double deltaTime) {
+	mAnimCurrentTicks = fmod(mAnimCurrentTicks + mAnimTicksPerSecond * deltaTime, mAnimDurationTicks);
 	
 	UpdateBoneMatrices_internal(scene->mRootNode, scene->mRootNode->mTransformation);
 }

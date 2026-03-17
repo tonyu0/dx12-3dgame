@@ -254,116 +254,132 @@ void Application::CreatePostProcessResourceAndView() {
 }
 
 void Application::CreatePipelineState() {
-	// Compile shader, using d3dcompiler
-	TShader vs, ps;
-	vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainVS");
-	ps.LoadPS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainPS");
-	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-		{
-			"POSITION",
-			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
-			0,
-			0, // D3D12_APPEND_ALIGNED_ELEMENT is also ok.
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-			0
-		},
-		{
-			"NORMAL",
-			0,
-			DXGI_FORMAT_R32G32B32_FLOAT,
-			0,
-			12, // (R32G32B32 = 4byte * 3)
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-			0
-		},
-		{
-			"TEXCOORD",
-			0,
-			DXGI_FORMAT_R32G32_FLOAT,
-			0,
-			24,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-			0
-		},
-		{
-			"BONEID",
-			0,
-			DXGI_FORMAT_R16G16_UINT,
-			0,
-			32,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-		},
-		{
-			"WEIGHT",
-			0,
-			DXGI_FORMAT_R32G32_FLOAT,
-			0,
-			36,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA
-		}
-	};
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
-	gpipeline.pRootSignature = m_rootSignature->GetRootSignaturePointer();
-	gpipeline.VS = vs.GetShaderBytecode();
-	gpipeline.PS = ps.GetShaderBytecode();
 
-	// sample maskよくわからんけどデフォでおk？
-	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;//中身は0xffffffff
-	//ハルシェーダ、ドメインシェーダ、ジオメトリシェーダは設定しない
-	gpipeline.HS.BytecodeLength = 0;
-	gpipeline.HS.pShaderBytecode = nullptr;
-	gpipeline.DS.BytecodeLength = 0;
-	gpipeline.DS.pShaderBytecode = nullptr;
-	gpipeline.GS.BytecodeLength = 0;
-	gpipeline.GS.pShaderBytecode = nullptr;
+	{ // 1. Input layout of shader
+		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
+			{
+				"POSITION",
+				0,
+				DXGI_FORMAT_R32G32B32_FLOAT,
+				0,
+				0, // D3D12_APPEND_ALIGNED_ELEMENT is also ok.
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+				0
+			},
+			{
+				"NORMAL",
+				0,
+				DXGI_FORMAT_R32G32B32_FLOAT,
+				0,
+				12, // (R32G32B32 = 4byte * 3)
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+				0
+			},
+			{
+				"TEXCOORD",
+				0,
+				DXGI_FORMAT_R32G32_FLOAT,
+				0,
+				24,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+				0
+			},
+			{
+				"BONEID",
+				0,
+				DXGI_FORMAT_R16G16_UINT,
+				0,
+				32,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+			},
+			{
+				"WEIGHT",
+				0,
+				DXGI_FORMAT_R32G32_FLOAT,
+				0,
+				36,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA
+			}
+		};
+		gpipeline.InputLayout.pInputElementDescs = inputLayout;//レイアウト先頭アドレス
+		gpipeline.InputLayout.NumElements = _countof(inputLayout);//レイアウト配列数
+	}
 
-	// ラスタライザの設定
-	gpipeline.RasterizerState.MultisampleEnable = false;//まだアンチェリは使わない
-	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;//カリングしない
-	gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;//中身を塗りつぶす
-	gpipeline.RasterizerState.DepthClipEnable = true;//深度方向のクリッピングは有効に
-	//残り
-	gpipeline.RasterizerState.FrontCounterClockwise = false;
-	gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-	gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-	gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-	gpipeline.RasterizerState.AntialiasedLineEnable = false;
-	gpipeline.RasterizerState.ForcedSampleCount = 0;
-	gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	TShader vs, ps;
+	{ // 2. Register shaders and their settings
+		// Compile shader, using d3dcompiler
+		vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainVS");
+		ps.LoadPS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainPS");
 
-	// OutputMerger部分
-	gpipeline.NumRenderTargets = 1;//今は１つのみ
-	gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;//0～1に正規化されたRGBA
+		gpipeline.pRootSignature = m_rootSignature->GetRootSignaturePointer();
+		gpipeline.VS = vs.GetShaderBytecode();
+		gpipeline.PS = ps.GetShaderBytecode();
 
-	//深度ステンシル
-	gpipeline.DepthStencilState.DepthEnable = true;//深度
-	gpipeline.DepthStencilState.StencilEnable = false;//あとで
-	gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-	gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		// sample maskよくわからんけどデフォでおk？
+		gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;//中身は0xffffffff
+		//ハルシェーダ、ドメインシェーダ、ジオメトリシェーダは設定しない
+		gpipeline.HS.BytecodeLength = 0;
+		gpipeline.HS.pShaderBytecode = nullptr;
+		gpipeline.DS.BytecodeLength = 0;
+		gpipeline.DS.pShaderBytecode = nullptr;
+		gpipeline.GS.BytecodeLength = 0;
+		gpipeline.GS.pShaderBytecode = nullptr;
 
-	// アルファブレンドON, アルファテストOFFだとa==0の時にもPSが走って無駄。
-	// 伝統的にアルファブレンドするときにはアルファテストもする。これは疎の設定。
-	// これは、従来のに加えてマルチサンプリング時の網羅率が入るからアンチエイリアス時にきれいになる？？
-	gpipeline.BlendState.AlphaToCoverageEnable = false;
-	gpipeline.BlendState.IndependentBlendEnable = false;
+		// ラスタライザの設定
+		gpipeline.RasterizerState.MultisampleEnable = false;//まだアンチェリは使わない
+		gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;//カリングしない
+		gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;//中身を塗りつぶす
+		gpipeline.RasterizerState.DepthClipEnable = true;//深度方向のクリッピングは有効に
+		//残り
+		gpipeline.RasterizerState.FrontCounterClockwise = false;
+		gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+		gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+		gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+		gpipeline.RasterizerState.AntialiasedLineEnable = false;
+		gpipeline.RasterizerState.ForcedSampleCount = 0;
+		gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
+		// OutputMerger部分
+		gpipeline.NumRenderTargets = 1;//今は１つのみ
+		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;//0～1に正規化されたRGBA
 
+		//深度ステンシル
+		gpipeline.DepthStencilState.DepthEnable = true;//深度
+		gpipeline.DepthStencilState.StencilEnable = false;//あとで
+		gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+		gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 
-	D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
-	//ひとまず加算や乗算やαブレンディングは使用しない
-	renderTargetBlendDesc.BlendEnable = false;
-	renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	}
 
-	//ひとまず論理演算は使用しない
-	renderTargetBlendDesc.LogicOpEnable = false;
+	{ // 3. Blend settings
+		D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
+		renderTargetBlendDesc.BlendEnable = true;
+		renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // Write to all channels (RGBA)
 
-	gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
+		// Final Color = SrcColor * SrcAlpha + DestColor * (1 - SrcAlpha)
+		renderTargetBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		renderTargetBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		renderTargetBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
 
-	gpipeline.InputLayout.pInputElementDescs = inputLayout;//レイアウト先頭アドレス
-	gpipeline.InputLayout.NumElements = _countof(inputLayout);//レイアウト配列数
+		// Final Alpha = SrcAlpha * ONE + DestAlpha * (1 - SrcAlpha)
+		renderTargetBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE; // Source alpha blend factor is ONE
+		renderTargetBlendDesc.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA; // Destination alpha blend factor is inverse source alpha
+		renderTargetBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD; // Alpha blending operation is addition
+
+		//ひとまず論理演算は使用しない
+		renderTargetBlendDesc.LogicOpEnable = false;
+		renderTargetBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+
+		gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
+		// アルファブレンドON, アルファテストOFFだとa==0の時にもPSが走って無駄。
+		// 伝統的にアルファブレンドするときにはアルファテストもする。これは疎の設定。
+		// これは、従来のに加えてマルチサンプリング時の網羅率が入るからアンチエイリアス時にきれいになる？？
+		gpipeline.BlendState.AlphaToCoverageEnable = false;
+		gpipeline.BlendState.IndependentBlendEnable = false;
+	}
 
 	gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;//ストリップ時のカットなし
 	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;//三角形で構成
@@ -723,8 +739,16 @@ void Application::Run() {
 	MSG msg = {};
 	float angle = .0;
 
+	std::chrono::steady_clock::time_point previousFrameTime = std::chrono::high_resolution_clock::now();
 	// Render系のCmdListとかContextみたいなのにまとめる
 	while (true) {
+		// Deltatime
+		std::chrono::steady_clock::time_point currentFrameTime = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> deltaTime = currentFrameTime - previousFrameTime;
+		previousFrameTime = currentFrameTime;
+
+
+
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
@@ -743,7 +767,7 @@ void Application::Run() {
 		_cmdList->RSSetScissorRects(1, &scissorrect);
 
 		// Here Update Vertices
-		_modelImporter->UpdateBoneMatrices();
+		_modelImporter->UpdateBoneMatrices(deltaTime.count());
 		// Upload bone CBV
 		std::copy(_modelImporter->boneMatrices, _modelImporter->boneMatrices + 256, _mapTransformMatrix->bones);
 		// here, for shadow map light depth

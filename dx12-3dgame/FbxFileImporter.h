@@ -59,5 +59,5 @@ public:
 	aiMatrix4x4 globalInverseTransform;
 	// Animation
 	DirectX::XMMATRIX ConvertFbxMatrix(const aiMatrix4x4& src);
-	void UpdateBoneMatrices();
+	void UpdateBoneMatrices(double deltaTime);
 };
