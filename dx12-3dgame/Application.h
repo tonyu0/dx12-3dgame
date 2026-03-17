@@ -98,7 +98,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _canvasPipelineState = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _shadowPipelineState = nullptr;
 
-	class TDX12RootSignature* m_rootSignature;
+	class TDX12RootSignature* m_rootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
 	// basicDescHeap: matrix, textureを結び付けるディスクリプタヒープ
@@ -116,13 +116,12 @@ private:
 
 	// Vertex
 	std::map<std::string, D3D12_VERTEX_BUFFER_VIEW> vertex_buffer_view;
-	D3D12_VERTEX_BUFFER_VIEW _canvasVBV; // for post process canvas
+	D3D12_VERTEX_BUFFER_VIEW _canvasVBV = {}; // for post process canvas
 	std::map<std::string, D3D12_INDEX_BUFFER_VIEW> index_buffer_view;
 
 	FbxFileImporter* _modelImporter = nullptr; // せめてshared_ptrにしたいが現状うまくいってない。
 	TWindowManager* windowManager = nullptr;
 
-	void InitializeWindow();
 	void CreateDevice();
 	void CreateCommandList(D3D12_COMMAND_LIST_TYPE);
 	void CreateSwapChain();

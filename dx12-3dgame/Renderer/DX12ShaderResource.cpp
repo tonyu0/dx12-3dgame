@@ -4,6 +4,10 @@ TDX12ShaderResource::TDX12ShaderResource(const std::string& textureFileName, ID3
 	Initialize(textureFileName, device);
 }
 
+DXGI_FORMAT TDX12ShaderResource::GetResourceFormat() {
+	return m_textureMetadata.format;
+}
+
 // シェーダーリソースビューとマテリアルのビューは同じディスクリプタヒープに置く。
 // マテリアルとテクすちゃそれぞれのルートパラメーターをまとめる。ディスクリプタレンジは分ける。
 // 1. テクスチャロード、　2. リソースの作成、 3. データコピー
@@ -73,9 +77,8 @@ void TDX12ShaderResource::Initialize(const std::string& textureFileName, ID3D12D
 void TDX12ShaderResource::CreateView(D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle, ID3D12Device* device) {
 	//通常テクスチャビュー作成
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	//srvDesc.Format = m_textureMetadata.format;//DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
-	// TODO : ↑テクスチャ読めてない場合など, FormatがUnknownとかだとエラーになるので強制的にこれ、例外処理など行う
+	srvDesc.Format = m_textureMetadata.format;//DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
+	// TODO : ↑テクスチャ読めてない場合など, FormatがUnknownとかだとエラーになりデバイスが落ちる(Resrouce(実際のメモリ上の生データ)とView(メモリ上のデータをどう解釈するか))
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	// 画像データのRGBSの情報がそのまま捨て宇されたフォーマットに、データ通りの順序で割り当てられているか
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;//2Dテクスチャ

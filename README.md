@@ -2,16 +2,12 @@
 
 ## Build setup
 
-- Download FBX SDK from:
-https://aps.autodesk.com/developer/overview/fbx-sdk
 
-- Extract fbx-sdk to external
+* build assimp
+cd external/assimp
+mkdir build
+cmake -S . -B build
+cmake --build build
 
-- final location of external libraries
-```
-external
-├──DirectX-Headers
-├──DirectXTex
-└──fbxsdk
-```
-
+* copy external/assimp/include to external/assimp/build/include
+assimp include directory of this project is external/assimp/build/include

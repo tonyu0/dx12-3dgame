@@ -4,3 +4,6 @@
 [submodule "external/DirectXTex"]
 	path = external/DirectXTex
 	url = https://github.com/microsoft/DirectXTex.git
+[submodule "external/assimp"]
+	path = external/assimp
+	url = https://github.com/assimp/assimp.git

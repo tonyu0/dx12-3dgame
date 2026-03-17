@@ -476,8 +476,8 @@ void Application::CreateDescriptorHeap() {
 void Application::CreateCBV() {
 	// TODO : ここらへんinputから動かせるようにする　分かるように左上にprint
 	XMMATRIX mMatrix = XMMatrixIdentity();
-	XMVECTOR eyePos = { 0, 13., -10 }; // 視点
-	XMVECTOR targetPos = { 0, 13.5, 0 }; // 注視点
+	XMVECTOR eyePos = { 0, 13., -50 }; // 視点
+	XMVECTOR targetPos = { 0, 10.5, 0 }; // 注視点
 	XMVECTOR upVec = { 0, 1, 0 };
 	_vMatrix = XMMatrixLookAtLH(eyePos, targetPos, upVec);
 	// FOV, aspect ratio, near, far
@@ -541,12 +541,10 @@ bool Application::Init() {
 
 	// TODO: need to organize model file locations
 	// Model file
-	std::string fbxFileName = "../dx12-3dgame/assets/model/WhipperNude.fbx";
-	// Texture directory
-	std::string textureDirectoryName = "../dx12-3dgame/assets/texture/";
+	std::string fbxFileName = "../dx12-3dgame/assets/scene.gltf";
 
-	_modelImporter = new FbxFileImporter(fbxFileName, textureDirectoryName);
-	_modelImporter->CreateFbxManager();
+	_modelImporter = new FbxFileImporter();
+	_modelImporter->CreateFbxManager(fbxFileName);
 	// 
 	m_rootSignature = new TDX12RootSignature();
 	m_rootSignature->Initialize(_dev.Get());
@@ -671,8 +669,8 @@ void Application::Run() {
 	ShowWindow(windowManager->GetHandle(), SW_SHOW);//ウィンドウ表示
 
 	D3D12_VIEWPORT viewport = {};
-	viewport.Width = windowManager->GetWidth(); // pixel
-	viewport.Height = windowManager->GetHeight(); // pixel
+	viewport.Width = (float)windowManager->GetWidth(); // pixel
+	viewport.Height = (float)windowManager->GetHeight(); // pixel
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
 	viewport.MaxDepth = 1.0f;
@@ -698,14 +696,6 @@ void Application::Run() {
 //	rgba.A = 255;//アルファは1.0という事にします。
 //}
 
-	// Register Texture to SRV
-	TDX12ShaderResource* shaderResource = new TDX12ShaderResource("../dx12-3dgame/assets/flower.jpg", _dev.Get());
-	// TODO: when the resource cannot be read, new should fail?
-	if (shaderResource->IsValidShaderResource()) {
-		m_basicDescriptorHeap->RegistShaderResource(2, shaderResource);
-	}
-
-
 	//D3D12_CONSTANT_BUFFER_VIEW_DESC materialCBVDesc;
 	//materialCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // マップ先を押してる
 	//materialCBVDesc.SizeInBytes = (sizeof(material) + 0xff) & ~0xff;
@@ -715,7 +705,8 @@ void Application::Run() {
 	for (auto& itr : _modelImporter->mesh_vertices) {
 		std::string mesh_name = itr.first;
 		std::cout << "Material Name: " << _modelImporter->mesh_material_name[mesh_name] << " Mesh Name is " << mesh_name << std::endl;
-		const std::string& textureFilename = _modelImporter->m_materialNameToTextureName[_modelImporter->mesh_material_name[mesh_name]];
+		const std::string& textureFilename = std::string("../dx12-3dgame/assets/") + _modelImporter->mesh_texture_name[mesh_name];
+		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
 		m_materialDescriptorHeap->RegistShaderResource(0, shaderResource);
 	}
@@ -743,7 +734,7 @@ void Application::Run() {
 		}
 
 		angle += 0.01f;
-		_mapTransformMatrix->world = XMMatrixRotationX(-XM_PIDIV2) * XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
+		_mapTransformMatrix->world = XMMatrixRotationX(0.) * XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
 		_mapSceneMatrix->view = _vMatrix;
 		_mapSceneMatrix->proj = _pMatrix;
 

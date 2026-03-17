@@ -7,10 +7,10 @@ public:
 	TDX12ShaderResource(const std::string& textureFileName, ID3D12Device* device);
 	void Initialize(const std::string& textureFileName, ID3D12Device* device); // テクスチャパスからResource初期化
 	void CreateView(D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle, ID3D12Device* device);
-	void CopyToVRAM(); // pass mMatrix
 	bool IsValidShaderResource() {
 		return m_shaderResource != nullptr;
 	}
+	DXGI_FORMAT GetResourceFormat();
 
 	// TODO : Util的なところに移す
 	static std::wstring GetWideStringFromString(const std::string& str) {

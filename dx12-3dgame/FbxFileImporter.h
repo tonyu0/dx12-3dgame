@@ -1,5 +1,7 @@
 #pragma once
-#include <fbxsdk.h>
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 #include <map>
 #include <string>
 #include <vector>
@@ -10,18 +12,14 @@ struct Material;
 
 class FbxFileImporter {
 public:
-	FbxFileImporter(const std::string& inFbxFileName, const std::string& inTextureDirectoryName): fbxFileName(inFbxFileName), textureDirectoryName(inTextureDirectoryName) {
+	FbxFileImporter() {
 		for (int i = 0; i < 256; ++i) {
 			boneMatrices[i] = DirectX::XMMatrixIdentity();
 		}
 	}
-	void CreateFbxManager();
+	bool CreateFbxManager(const std::string& inFbxFileName);
 private:
-	void LoadMesh(FbxMesh* mesh);
-	void LoadMaterial(FbxSurfaceMaterial* material);
-	void LoadBone(FbxMesh* mesh);
-	void DisplayIndex(FbxMesh* mesh);
-	bool SaveScene(FbxManager* pManager, FbxDocument* pScene, const char* pFilename, int pFileFormat, bool pEmbedMedia);
+	void LoadMesh(aiMesh* mesh);
 	std::string GetExtension(const std::string& path) {
 		auto idx = path.rfind('.');
 		return path.substr(idx + 1, path.length() - idx - 1);
@@ -30,16 +28,15 @@ private:
 		auto idx = path.rfind(L'.');
 		return path.substr(idx + 1, path.length() - idx - 1);
 	}
-	std::wstring GetWideStringFromString(const std::string& str);
-	FbxScene* scene;
+	void UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4x4& parentTransform);
+	static aiMatrix4x4 InterpolateTransform(const aiNodeAnim* pNodeAnim, double animationTime);
+
+	Assimp::Importer importer;
+	const aiScene* scene;
 	std::map<std::string, Material> raw_materials;
 
 	// Animation Parameters
-	FbxTime frameTime, timeCount, animStartTime, animStopTime;
-
-	// data file info
-	std::string fbxFileName;
-	std::string textureDirectoryName;
+	double mAnimCurrentTicks = 0., mAnimDurationTicks = 0., mAnimTicksPerSecond = 0.;
 
 public:
 	std::map<std::string, std::vector<Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。
@@ -47,16 +44,20 @@ public:
 	// めっちゃ遠回りなんだけど、mesh_name -> material_name -> texture実体
 	// 複数のmeshで同じテクスチャを使うことがある場合、flyweight patternを使うと良い。これはmapにfindしてあったら返す、なかったら作るみたいにすればいい.
 	std::map<std::string, std::string> mesh_material_name;
-	std::map<std::string, std::string> m_materialNameToTextureName;
+	std::map<std::string, std::string> mesh_texture_name;
+	std::map<std::string, unsigned int> node_bone_map;
+	std::map<std::string, aiNodeAnim*> node_anim_map;
 
 	struct BoneInfo {
-		FbxNode* meshNode;
-		FbxCluster* cluster;
+		aiNode* meshNode; // aiNode: シーンの階層構造を管理する基本単位
+		aiBone* cluster; // aiBone: 頂点インデックスとウェイトのペアを管理
 	};
 	// bone information
-	BoneInfo bones[256];
-	DirectX::XMMATRIX boneMatrices[256];
+	BoneInfo bones[256] = {};
+	aiMatrix4x4 boneOffsets[256] = {};
+	DirectX::XMMATRIX boneMatrices[256] = {};
+	aiMatrix4x4 globalInverseTransform;
 	// Animation
-	DirectX::XMMATRIX ConvertFbxMatrix(FbxAMatrix& src);
+	DirectX::XMMATRIX ConvertFbxMatrix(const aiMatrix4x4& src);
 	void UpdateBoneMatrices();
 };
