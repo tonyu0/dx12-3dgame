@@ -125,7 +125,7 @@ private:
 	void CreateCommandList(D3D12_COMMAND_LIST_TYPE);
 	void CreateSwapChain();
 	void CreateDepthStencilView();
-	void CreatePipelineState();
+	bool CreatePipelineState();
 	void CreateCanvasPipelineState();
 	void CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc);
 	void CreateCBV();

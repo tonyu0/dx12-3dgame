@@ -8,6 +8,9 @@ public:
 	D3D12_SHADER_BYTECODE GetShaderBytecode() noexcept {
 		return CD3DX12_SHADER_BYTECODE(m_shaderBlob.Get());
 	}
+	bool IsValid() {
+		return m_shaderBlob != nullptr;
+	}
 private:
 	Microsoft::WRL::ComPtr<ID3DBlob> m_shaderBlob = nullptr;
 };

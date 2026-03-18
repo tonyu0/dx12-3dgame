@@ -253,7 +253,7 @@ void Application::CreatePostProcessResourceAndView() {
 	_dev->CreateShaderResourceView(_postProcessResource.Get(), &srvDesc, _postProcessSRVHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
-void Application::CreatePipelineState() {
+bool Application::CreatePipelineState() {
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 
@@ -310,8 +310,12 @@ void Application::CreatePipelineState() {
 	TShader vs, ps;
 	{ // 2. Register shaders and their settings
 		// Compile shader, using d3dcompiler
-		vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainVS");
-		ps.LoadPS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "MainPS");
+		vs.LoadVS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainVS");
+		ps.LoadPS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainPS");
+		if (!vs.IsValid() || !ps.IsValid()) {
+			std::cout << "Failed to load shader." << std::endl;
+			return false;
+		}
 
 		gpipeline.pRootSignature = m_rootSignature->GetRootSignaturePointer();
 		gpipeline.VS = vs.GetShaderBytecode();
@@ -388,6 +392,7 @@ void Application::CreatePipelineState() {
 
 	CheckError("CreateGraphicsPipelineState", _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(_pipelineState.ReleaseAndGetAddressOf())));
 	CreateShadowMapPipelineState(gpipeline);
+	return true;
 }
 void Application::CreateCanvasPipelineState() {
 
@@ -414,8 +419,8 @@ void Application::CreateCanvasPipelineState() {
 	};
 	// ここで、シェーダーごとにパイプラインステートを作る？
 	TShader vs, ps;
-	vs.LoadVS(L"../dx12-3dgame/shaders/CanvasShader.hlsl", "MainVS");
-	ps.LoadPS(L"../dx12-3dgame/shaders/CanvasShader.hlsl", "MainPS");
+	vs.LoadVS(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainVS");
+	ps.LoadPS(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainPS");
 
 	// create root signature
 	D3D12_DESCRIPTOR_RANGE range = {};
@@ -465,7 +470,7 @@ void Application::CreateCanvasPipelineState() {
 
 void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc) {
 	TShader vs;
-	vs.LoadVS(L"../dx12-3dgame/shaders/BasicShader.hlsl", "ShadowVS");
+	vs.LoadVS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "ShadowVS");
 	gpipelineDesc.VS = vs.GetShaderBytecode();
 	gpipelineDesc.PS.pShaderBytecode = nullptr;
 	gpipelineDesc.PS.BytecodeLength = 0;
@@ -477,7 +482,7 @@ void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DES
 void Application::CreateCBV() {
 	// TODO : ここらへんinputから動かせるようにする　分かるように左上にprint
 	XMMATRIX mMatrix = XMMatrixIdentity();
-	XMVECTOR eyePos = { 0, 13., -50 }; // 視点
+	XMVECTOR eyePos = { 0, 13., -30 }; // 視点
 	XMVECTOR targetPos = { 0, 10.5, 0 }; // 注視点
 	XMVECTOR upVec = { 0, 1, 0 };
 	_vMatrix = XMMatrixLookAtLH(eyePos, targetPos, upVec);
@@ -542,7 +547,7 @@ bool Application::Init() {
 
 	// TODO: need to organize model file locations
 	// Model file
-	std::string fbxFileName = "../dx12-3dgame/assets/scene.gltf";
+	std::string fbxFileName = "../model-viewer-dx12/assets/scene.gltf";
 
 	_modelImporter = new FbxFileImporter();
 	_modelImporter->CreateFbxManager(fbxFileName);
@@ -568,7 +573,11 @@ bool Application::Init() {
 		m_resourceDescriptorHeap = new TDX12DescriptorHeap();
 		CreateCBV();
 	}
-	CreatePipelineState();
+
+	if (!CreatePipelineState()) {
+		std::cout << "Failed to create pipeline state." << std::endl;
+		return false;
+	}
 	CreateCanvasPipelineState();
 	return true;
 }
@@ -715,7 +724,7 @@ void Application::Run() {
 	for (auto& itr : _modelImporter->mesh_vertices) {
 		std::string mesh_name = itr.first;
 		std::cout << "Material Name: " << _modelImporter->mesh_material_name[mesh_name] << " Mesh Name is " << mesh_name << std::endl;
-		const std::string& textureFilename = std::string("../dx12-3dgame/assets/") + _modelImporter->mesh_texture_name[mesh_name];
+		const std::string& textureFilename = std::string("../model-viewer-dx12/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
 		m_resourceDescriptorHeap->RegistShaderResource(0, shaderResource);
@@ -757,7 +766,7 @@ void Application::Run() {
 
 
 		angle += 0.01f;
-		_mapTransformMatrix->world = XMMatrixRotationY(angle) * XMMatrixTranslation(0, 10, 0);
+		_mapTransformMatrix->world = XMMatrixRotationY(angle) * XMMatrixTranslation(0, 0, 0);
 		_mapSceneMatrix->view = _vMatrix;
 		_mapSceneMatrix->proj = _pMatrix;
 

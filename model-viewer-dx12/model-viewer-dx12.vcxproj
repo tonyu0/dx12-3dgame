@@ -24,7 +24,7 @@
     <ProjectGuid>{23d360eb-a82e-4fd5-9550-0fcd55a9ca2c}</ProjectGuid>
     <RootNamespace>dxstudy</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>dx12-3dgame</ProjectName>
+    <ProjectName>model-viewer-dx12</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

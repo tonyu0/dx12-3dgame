@@ -21,7 +21,7 @@ void TWindowManager::Initialize() {
 	AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, false);//ウィンドウのサイズはちょっと面倒なので関数を使って補正する
 //ウィンドウオブジェクトの生成
 	windowHandle = CreateWindow(windowClass.lpszClassName,//クラス名指定
-		_T("DX12テスト"),//タイトルバーの文字
+		_T("Model Viewer DX12"),//タイトルバーの文字
 		WS_OVERLAPPEDWINDOW,//タイトルバーと境界線があるウィンドウです
 		CW_USEDEFAULT,//表示X座標はOSにお任せします
 		CW_USEDEFAULT,//表示Y座標はOSにお任せします
