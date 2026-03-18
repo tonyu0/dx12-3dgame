@@ -1,5 +1,5 @@
 #pragma once
-#include "DX12RendererCommon.h" // DirectXTexだけはここからのみ呼ばれたい(Textureリソースを閉じる)
+#include "../Common.h" // DirectXTexだけはここからのみ呼ばれたい(Textureリソースを閉じる)
 // buffer系はinterfaceを同じにしたい
 class TDX12ShaderResource {
 public:

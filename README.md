@@ -48,8 +48,12 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
-### 3. Copy ```external/assimp/include``` to ```external/assimp/build/include```
+### 3. Move necessary files
+* Copy ```external/assimp/include``` to ```external/assimp/build/include```
 > [!NOTE]
 assimp include directory of this project is external/assimp/build/include
+
+
+* Move assimp-vc145-mtd.dll to the same location as the project's binary files.
 
 ### 4. Open the solution file (.sln) and build in Visual Studio.

@@ -1,4 +1,3 @@
-#include "DX12RendererCommon.h"
 #include "Shader.h"
 
 #include <d3dcompiler.h>

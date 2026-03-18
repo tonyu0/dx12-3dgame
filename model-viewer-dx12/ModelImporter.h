@@ -2,17 +2,12 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include <map>
-#include <string>
-#include <vector>
-#include "Application.h" // This is bad.
+#include "Common.h"
+#include "Types.h"
 
-struct Vertex;
-struct Material;
-
-class FbxFileImporter {
+class ModelImporter {
 public:
-	FbxFileImporter() {
+	ModelImporter() {
 		for (int i = 0; i < 256; ++i) {
 			boneMatrices[i] = DirectX::XMMatrixIdentity();
 		}
@@ -33,13 +28,13 @@ private:
 
 	Assimp::Importer importer;
 	const aiScene* scene;
-	std::map<std::string, Material> raw_materials;
+	std::map<std::string, ModelViewer::Material> raw_materials;
 
 	// Animation Parameters
 	double mAnimCurrentTicks = 0., mAnimDurationTicks = 0., mAnimTicksPerSecond = 0.;
 
 public:
-	std::map<std::string, std::vector<Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。
+	std::map<std::string, std::vector<ModelViewer::Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。
 	std::map<std::string, std::vector<unsigned short>> mesh_indices;
 	// めっちゃ遠回りなんだけど、mesh_name -> material_name -> texture実体
 	// 複数のmeshで同じテクスチャを使うことがある場合、flyweight patternを使うと良い。これはmapにfindしてあったら返す、なかったら作るみたいにすればいい.

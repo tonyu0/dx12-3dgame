@@ -173,8 +173,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="DX12Renderer.cpp" />
-    <ClCompile Include="FbxFileImporter.cpp" />
+    <ClCompile Include="ModelImporter.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Renderer\DX12ConstantBuffer.cpp" />
     <ClCompile Include="Renderer\DX12DescriptorHeap.cpp" />
@@ -186,15 +185,15 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
-    <ClInclude Include="DX12Renderer.h" />
-    <ClInclude Include="FbxFileImporter.h" />
+    <ClInclude Include="ModelImporter.h" />
     <ClInclude Include="Renderer\DX12ConstantBuffer.h" />
     <ClInclude Include="Renderer\DX12DescriptorHeap.h" />
     <ClInclude Include="Renderer\DX12PipelineState.h" />
-    <ClInclude Include="Renderer\DX12RendererCommon.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="Renderer\DX12RootSignature.h" />
     <ClInclude Include="Renderer\DX12ShaderResource.h" />
     <ClInclude Include="Renderer\Shader.h" />
+    <ClInclude Include="Types.h" />
     <ClInclude Include="WindowManager.h" />
   </ItemGroup>
   <ItemGroup>

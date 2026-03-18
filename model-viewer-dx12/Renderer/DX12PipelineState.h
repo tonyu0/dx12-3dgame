@@ -1,5 +1,5 @@
 #pragma once
-#include "DX12RendererCommon.h"
+#include "../Common.h"
 #include "DX12RootSignature.h"
 #include "Shader.h"
 

@@ -21,10 +21,7 @@
     <ClCompile Include="Application.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="FbxFileImporter.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="DX12Renderer.cpp">
+    <ClCompile Include="ModelImporter.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="WindowManager.cpp">
@@ -53,19 +50,13 @@
     <ClInclude Include="Application.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="FbxFileImporter.h">
-      <Filter>ソース ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="DX12Renderer.h">
+    <ClInclude Include="ModelImporter.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="WindowManager.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\DX12PipelineState.h">
-      <Filter>ソース ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer\DX12RendererCommon.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\DX12RootSignature.h">
@@ -81,6 +72,12 @@
       <Filter>ソース ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Renderer\DX12ShaderResource.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.h">
+      <Filter>ソース ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
       <Filter>ソース ファイル</Filter>
     </ClInclude>
   </ItemGroup>

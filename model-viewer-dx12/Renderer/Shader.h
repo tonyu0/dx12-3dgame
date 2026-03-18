@@ -1,5 +1,5 @@
 #pragma once
-#include "DX12RendererCommon.h"
+#include "../Common.h"
 class TShader {
 public:
 	TShader() = default;

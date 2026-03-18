@@ -4,6 +4,9 @@
 #include "Renderer/DX12DescriptorHeap.h"
 #include "Renderer/DX12ConstantBuffer.h"
 #include "Renderer/DX12ShaderResource.h"
+
+using namespace ModelViewer;
+
 // @brief	コンソールにフォーマット付き文字列を表示
 // @param	format フォーマット %d or %f etc
 // @param	可変長引数
@@ -549,7 +552,7 @@ bool Application::Init() {
 	// Model file
 	std::string fbxFileName = "../model-viewer-dx12/assets/scene.gltf";
 
-	_modelImporter = new FbxFileImporter();
+	_modelImporter = new ModelImporter();
 	_modelImporter->CreateFbxManager(fbxFileName);
 	// 
 	m_rootSignature = new TDX12RootSignature();

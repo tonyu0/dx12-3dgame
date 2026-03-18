@@ -1,7 +1,7 @@
-#include "FbxFileImporter.h"
+#include "ModelImporter.h"
 
 // ControlPoints = 頂点バッファ、 PolugonVertexCount = 頂点座標？
-void FbxFileImporter::LoadMesh(aiMesh* mesh) {
+void ModelImporter::LoadMesh(aiMesh* mesh) {
 	std::string mesh_name = mesh->mName.C_Str();
 	std::cout << "Load " << mesh_name << " Data" << std::endl;
 	{ // 1. 頂点インデックスの読み込み
@@ -15,9 +15,9 @@ void FbxFileImporter::LoadMesh(aiMesh* mesh) {
 	}
 
 	{ // 2. 頂点情報の読み込み: pos, normal, uv
-		std::vector<Vertex> vertices;
+		std::vector<ModelViewer::Vertex> vertices;
 		for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
-			Vertex vert{};
+			ModelViewer::Vertex vert{};
 			auto p = mesh->mVertices[v];
 			vert.pos = { p.x, p.y, p.z };
 
@@ -34,7 +34,7 @@ void FbxFileImporter::LoadMesh(aiMesh* mesh) {
 	}
 
 	{ // 3. 頂点情報の読み込み: weight, boneid
-		auto AddBoneInfo = [](Vertex& v, int boneid, double weight) {
+		auto AddBoneInfo = [](ModelViewer::Vertex& v, int boneid, double weight) {
 			if (v.weight[0] < weight) {
 				v.weight[1] = v.weight[0];
 				v.boneid[1] = v.boneid[0];
@@ -78,7 +78,7 @@ void FbxFileImporter::LoadMesh(aiMesh* mesh) {
 	}
 }
 
-bool FbxFileImporter::CreateFbxManager(const std::string& inFbxFileName) {
+bool ModelImporter::CreateFbxManager(const std::string& inFbxFileName) {
 	// ボーン更新時等にscene->mRootNoteが必要になるのでsceneが破棄されないようにimporterをメンバにしている
 	scene = importer.ReadFile(inFbxFileName, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
 
@@ -125,13 +125,13 @@ bool FbxFileImporter::CreateFbxManager(const std::string& inFbxFileName) {
 	return true;
 }
 
-void FbxFileImporter::UpdateBoneMatrices(double deltaTime) {
+void ModelImporter::UpdateBoneMatrices(double deltaTime) {
 	mAnimCurrentTicks = fmod(mAnimCurrentTicks + mAnimTicksPerSecond * deltaTime, mAnimDurationTicks);
 	
 	UpdateBoneMatrices_internal(scene->mRootNode, scene->mRootNode->mTransformation);
 }
 
-void FbxFileImporter::UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4x4& parentTransform) {
+void ModelImporter::UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4x4& parentTransform) {
 	std::string nodeName = pNode->mName.C_Str();
 	aiMatrix4x4 nodeTransform = pNode->mTransformation;
 	// このノードに対応するアニメーションチャンネルがあれば補間行列を取得
@@ -158,7 +158,7 @@ void FbxFileImporter::UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4
 	}
 }
 
-aiMatrix4x4 FbxFileImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, double animationTime) {
+aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, double animationTime) {
 	//if(pNodeAnim->mNumPositionKeys < 2) {}
 
 	aiVector3D interpolatedPos, interpolatedScale;
@@ -244,9 +244,9 @@ aiMatrix4x4 FbxFileImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, d
 	return translationMat * rotationMat * scalingMat;
 }
 
-DirectX::XMMATRIX FbxFileImporter::ConvertFbxMatrix(const aiMatrix4x4& src)
+DirectX::XMMATRIX ModelImporter::ConvertFbxMatrix(const aiMatrix4x4& src)
 {
-	return		XMMatrixSet(
+	return		DirectX::XMMatrixSet(
 		static_cast<FLOAT>(src.a1), static_cast<FLOAT>(src.b1), static_cast<FLOAT>(src.c1), static_cast<FLOAT>(src.d1),
 		static_cast<FLOAT>(src.a2), static_cast<FLOAT>(src.b2), static_cast<FLOAT>(src.c2), static_cast<FLOAT>(src.d2),
 		static_cast<FLOAT>(src.a3), static_cast<FLOAT>(src.b3), static_cast<FLOAT>(src.c3), static_cast<FLOAT>(src.d3),

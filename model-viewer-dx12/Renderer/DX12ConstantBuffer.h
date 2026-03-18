@@ -1,5 +1,5 @@
 #pragma once
-#include "DX12RendererCommon.h"
+#include "../Common.h"
 // bufferŒn‚Íinterface‚ð“¯‚¶‚É‚µ‚½‚¢
 class TDX12ConstantBuffer {
 public:

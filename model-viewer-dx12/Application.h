@@ -1,59 +1,11 @@
 #pragma once
-#include <chrono>
-#include <vector>
-#include <map>
-//#ifdef _DEBUG
-#include <iostream>
-//#endif
-#include "Renderer/DX12RendererCommon.h"
-#include "FbxFileImporter.h"
+
+#include "Common.h"
+#include "Types.h"
+#include "ModelImporter.h"
 #include "WindowManager.h"
 
 using namespace DirectX;
-
-class FbxFileImporter;
-
-struct Vertex {
-	XMFLOAT3 pos;
-	XMFLOAT3 normal;
-	XMFLOAT2 uv;
-	unsigned short boneid[2] = { 255, 255 };
-	float weight[2];
-};
-
-struct CanvasVertex {
-	XMFLOAT3 pos;
-	XMFLOAT2 uv;
-};
-
-// 今のところ、52バイト
-// Material, Vertexは互いに依存している。どのようにfbxとやり取りするかがまだ
-struct Material {
-	void SetAmbient(float r, float g, float b, float factor) {
-		Ambient[0] = r;
-		Ambient[1] = g;
-		Ambient[2] = b;
-		Ambient[3] = factor;
-	}
-	void SetDiffuse(float r, float g, float b, float factor) {
-		Diffuse[0] = r;
-		Diffuse[1] = g;
-		Diffuse[2] = b;
-		Diffuse[3] = factor;
-	}
-	void SetSpecular(float r, float g, float b, float factor) {
-		Specular[0] = r;
-		Specular[1] = g;
-		Specular[2] = b;
-		Specular[3] = factor;
-	}
-	float Ambient[4];
-	float Diffuse[4];
-	float Specular[4];
-	float Alpha;
-};
-
-
 
 class Application {
 private:
@@ -118,7 +70,7 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW _canvasVBV = {}; // for post process canvas
 	std::map<std::string, D3D12_INDEX_BUFFER_VIEW> index_buffer_view;
 
-	FbxFileImporter* _modelImporter = nullptr; // せめてshared_ptrにしたいが現状うまくいってない。
+	ModelImporter* _modelImporter = nullptr; // せめてshared_ptrにしたいが現状うまくいってない。
 	TWindowManager* windowManager = nullptr;
 
 	void CreateDevice();
