@@ -38,10 +38,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue = nullptr;
 
 
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeaps = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> g_pRenderTargets[2];
 	// Depth Buffer
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvHeap = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer = nullptr;
 	// Fence
 	Microsoft::WRL::ComPtr<ID3D12Fence> _fence = nullptr;
@@ -54,15 +52,17 @@ private:
 	class TDX12RootSignature* m_rootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
-	class TDX12DescriptorHeap* m_resourceDescriptorHeap = nullptr;
+	class TDX12DescriptorHeap* mResourceDescriptorHeapWrapper = nullptr; // Descriptor Heap Wrapper for CBV, SRV, UAV
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeaps = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvHeap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessRTVHeap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessSRVHeap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _depthSRVHeap = nullptr;
 
 	// for Post Process Additional Path
 	Microsoft::WRL::ComPtr<ID3D12Resource> _postProcessResource = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessRTVHeap = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessSRVHeap = nullptr;
 
 	// for shadow map
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _depthSRVHeap = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _lightDepthBuffer = nullptr; // shadow map
 
 	// Vertex
@@ -86,6 +86,10 @@ private:
 	void WaitDrawDone();
 
 	void SetVerticesInfo();
+
+	// ImGui
+	void SetupImGui();
+	void CleanupImGui();
 
 	// Singleton: private constructor
 	// not allow to copy but allow to move

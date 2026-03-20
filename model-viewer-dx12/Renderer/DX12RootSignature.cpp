@@ -42,19 +42,8 @@ void TDX12RootSignature::Initialize(ID3D12Device* device) {
 
 
 	// レンジ: ヒープ上に同じ種類のでスクリプタが連続している場合、まとめて指定できる
-	//root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-	// ルートパラメーターを全シェーダーから参照可能にする。
-	//root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	//root_parameters[0].Descriptor.ShaderRegister = 0;
-	//root_parameters[0].Descriptor.RegisterSpace = 0;
-
 	// command_list->SetGraphicsRootConstantBufferView(0, constant_buffer_->GetGPUVirtualAddress());
 
-	//cbuffer cbTansMatrix : register(b0) { // if ShaderRegister = 1 then b1.
-	//	float4x4 WVP;
-	//};
-
-	// テーブルがなんのテーブルか？これはリソースをどこに配置するかのテーブルである。
 	D3D12_ROOT_PARAMETER rootparam[3] = {};
 	// 行列、テクスチャ用root parameter
 	rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;

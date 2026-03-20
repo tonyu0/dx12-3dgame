@@ -7,6 +7,8 @@
 
 using namespace ModelViewer;
 
+static constexpr int APP_NUM_FRAMES_IN_FLIGHT = 2;
+
 // @brief	コンソールにフォーマット付き文字列を表示
 // @param	format フォーマット %d or %f etc
 // @param	可変長引数
@@ -103,10 +105,8 @@ void Application::CreateCommandList(D3D12_COMMAND_LIST_TYPE CommandListType) {
 }
 
 void Application::CreateSwapChain() {
-	// スワップチェーン
-	// GPU上のメモリ領域？ディスクリプタで確保したビューにより、操作。
 	DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
-	swapchainDesc.Width = windowManager->GetWidth(); // ウィンドウサイズと合わせる
+	swapchainDesc.Width = windowManager->GetWidth();
 	swapchainDesc.Height = windowManager->GetHeight();
 	swapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swapchainDesc.Stereo = false;
@@ -114,24 +114,17 @@ void Application::CreateSwapChain() {
 	swapchainDesc.SampleDesc.Quality = 0;
 	swapchainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER;
 	swapchainDesc.BufferCount = 2;
-	swapchainDesc.Scaling = DXGI_SCALING_STRETCH; // バックバッファーは伸び縮み可能
-	swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // フリップ後は速やかに破棄
-	swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED; // 特に指定なし
-	swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH; // ウインドウ⇔フルスクリーん切り替え可能
-
+	swapchainDesc.Scaling = DXGI_SCALING_STRETCH;
+	swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+	swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 	CheckError("CreateSwapChain", _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue.Get(), windowManager->GetHandle(), &swapchainDesc, nullptr, nullptr, (IDXGISwapChain1**)_swapchain.ReleaseAndGetAddressOf()));
 
-	// バックバッファーを確保してスワップチェーンオブジェクトを生成
-	// ここまでで、バッファーが入れ替わることはあっても、書き換えることはできない。
-
-
-	// ディスクリプタとスワップチェーン上のバッファーと関連付けを行う。
+	// スワップチェーン: バックバッファは一応テクスチャなどその他データと同じくVRAM上に確保される。
+	// vsyncとか色々あるけど、更新タイミングでスワップチェーンがバッファを入れ替え、先ほどまで描き込んでいたバックバッファがディスプレイ上で走査され、映像となる。
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-	// 5章で追加　ガンマ補正をしてsRGBで画像を表示
-	// sRGB RTV setting. RTVの設定のみsRGBできるように。
-	// スワップチェーンのフォーマットはsRGBにしてはいけない。スワップチェーン生成が失敗する。なぜ？
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // _SRGB
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	for (UINT i = 0; i < 2; ++i) {
 		CheckError("GetBackBuffer", _swapchain->GetBuffer(i, IID_PPV_ARGS(g_pRenderTargets[i].ReleaseAndGetAddressOf())));
@@ -515,8 +508,8 @@ void Application::CreateCBV() {
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
 	}
-	m_resourceDescriptorHeap->RegistConstantBuffer(0, transformConstantBuffer);
-	m_resourceDescriptorHeap->RegistConstantBuffer(1, sceneConstantBuffer);
+	mResourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer);
+	mResourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer);
 }
 
 void Application::WaitDrawDone() {
@@ -536,6 +529,56 @@ void Application::WaitDrawDone() {
 	}
 }
 
+void Application::SetupImGui() {
+	// https://github.com/ocornut/imgui/blob/master/examples/example_win32_directx12/main.cpp
+	
+	// Make process DPI aware and obtain main monitor scale
+	ImGui_ImplWin32_EnableDpiAwareness();
+	float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+
+	// Setup scaling
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplWin32_Init(windowManager->GetHandle());
+
+	//ImGui_ImplDX12_InitInfo init_info = {};
+	//init_info.Device = _dev.Get();
+	//init_info.CommandQueue = _cmdQueue.Get();
+	//init_info.NumFramesInFlight = APP_NUM_FRAMES_IN_FLIGHT;
+	//init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	//init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	//// Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
+	//// (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
+	//init_info.SrvDescriptorHeap = mResourceDescriptorHeapWrapper->GetAddressOf();
+	//init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { return g_pd3dSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle); };
+	//init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) { return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
+	//ImGui_ImplDX12_Init(&init_info);
+	
+	// ImGuiはこちらのシェーダー側で飼養するわけではないので、RootSignature側で特にシェーダー側での使い方を定義する必要はない。
+	// DescriptorHeap上のD3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLEが使用時に取れれば良い。
+}
+
+void Application::CleanupImGui() {
+	// Cleanup
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
+}
+
 bool Application::Init() {
 	DebugOutput("Show window test");
 	windowManager = new TWindowManager(1280, 720);
@@ -547,6 +590,13 @@ bool Application::Init() {
 #endif
 	CreateDevice();
 	CreateCommandList(D3D12_COMMAND_LIST_TYPE_DIRECT);
+
+	{
+		mResourceDescriptorHeapWrapper = new TDX12DescriptorHeap(_dev.Get());
+	}
+
+	// ImGui setup requires Device, CommandQueue, SRV Descriptor Heap.
+	SetupImGui();
 
 	// TODO: need to organize model file locations
 	// Model file
@@ -572,10 +622,6 @@ bool Application::Init() {
 
 	// Create Fence
 	CheckError("CreateFence", _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
-	{
-		m_resourceDescriptorHeap = new TDX12DescriptorHeap();
-		CreateCBV();
-	}
 
 	if (!CreatePipelineState()) {
 		std::cout << "Failed to create pipeline state." << std::endl;
@@ -722,6 +768,7 @@ void Application::Run() {
 	//materialCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // マップ先を押してる
 	//materialCBVDesc.SizeInBytes = (sizeof(material) + 0xff) & ~0xff;
 	//_dev->CreateConstantBufferView(&materialCBVDesc, basicHeapHandle);
+	CreateCBV();
 
 	// Register FBX Model to SRV
 	for (auto& itr : _modelImporter->mesh_vertices) {
@@ -730,14 +777,13 @@ void Application::Run() {
 		const std::string& textureFilename = std::string("../model-viewer-dx12/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
-		m_resourceDescriptorHeap->RegistShaderResource(0, shaderResource);
+		mResourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource);
 	}
 
-	if (m_resourceDescriptorHeap->GetRegisteredResourceNum() == 0) {
+	if (mResourceDescriptorHeapWrapper->GetRegisteredResourceNum() == 0) {
 		std::cerr << "[LOAD ERROR] Model data or Material data seems to be unloaded." << std::endl;
 		exit(EXIT_FAILURE);
 	}
-	m_resourceDescriptorHeap->Commit(_dev.Get());
 
 
 	MSG msg = {};
@@ -777,27 +823,27 @@ void Application::Run() {
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorrect);
 
-		{ // 0. Shadow pipeline (shadow map light depth)
-			// depthはbarrierとかいらない?
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-			dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-			_cmdList->OMSetRenderTargets(0, nullptr, false, &dsvHandle); // no need RT
-			_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+		//{ // 0. Shadow pipeline (shadow map light depth)
+		//	// depthはbarrierとかいらない?
+		//	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		//	dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+		//	_cmdList->OMSetRenderTargets(0, nullptr, false, &dsvHandle); // no need RT
+		//	_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-			_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
-			_cmdList->SetPipelineState(_shadowPipelineState.Get());
+		//	_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
+		//	_cmdList->SetPipelineState(_shadowPipelineState.Get());
 
-			_cmdList->SetDescriptorHeaps(1, m_resourceDescriptorHeap->GetAddressOf());
-			_cmdList->SetGraphicsRootDescriptorTable(0, m_resourceDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		//	_cmdList->SetDescriptorHeaps(1, mResourceDescriptorHeapWrapper->GetAddressOf());
+		//	_cmdList->SetGraphicsRootDescriptorTable(0, mResourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart()); 
 
-			for (auto itr : _modelImporter->mesh_vertices) {
-				std::string name = itr.first;
-				_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
-				_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
-				_cmdList->DrawIndexedInstanced((UINT)_modelImporter->mesh_indices[name].size(), 1, 0, 0, 0);
-			}
-		}
+		//	for (auto itr : _modelImporter->mesh_vertices) {
+		//		std::string name = itr.first;
+		//		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//		_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
+		//		_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
+		//		_cmdList->DrawIndexedInstanced((UINT)_modelImporter->mesh_indices[name].size(), 1, 0, 0, 0);
+		//	}
+		//}
 
 		{ // 1 pass
 			// これunionらしい。Transition, Aliasing, UAV バリアがある。
@@ -821,22 +867,24 @@ void Application::Run() {
 			}
 
 			{// Set Resource DescriptorHeap
-				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(m_resourceDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(mResourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
 				auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				_cmdList->SetDescriptorHeaps(1, m_resourceDescriptorHeap->GetAddressOf());
+				_cmdList->SetDescriptorHeaps(1, mResourceDescriptorHeapWrapper->GetAddressOf());
 
 				_cmdList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 				gpuHandle.ptr += srvIncSize * 2; // b0, b1
-				// root parameter: descriptor heapをGPUに送るために必要。
 
 				//D3D12_GPU_DESCRIPTOR_HANDLE depthSRVHandle = _depthSRVHeap->GetGPUDescriptorHandleForHeapStart();
-				//_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle); // 2番目のheapがt2に結びつくようにしている
+				//_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle);
 
 				for (auto itr : _modelImporter->mesh_vertices) {
 					std::string name = itr.first;
-					// そのあと、ルートパラメーターとビューを登録。b1として参照できる
-					// root parameterのうち、何番目か
-					_cmdList->SetGraphicsRootDescriptorTable(1, gpuHandle);
+					// SetGraphicsRootDescriptorTable: RootParam[1]で定義したDescriptorTableに、gpuHandleで指示されるDescriptorHeapを割り当てる。
+					// ヒープの開始地点を教えるから、そこから先はシェーダー側でOffsetを使って自由に読み取って。とすることで効率化
+					// RootParam[1]側でシェーダー側のt1にテクスチャが読み込まれるようにしている(See TDX12RootSignature::Initialize)
+					// DescriptorHeap側にはメッシュごとのテクスチャ(のView)が大量にあるが、そのシェーダー側の使い方としては、RootParam[1]で定義しているのみ
+					_cmdList->SetGraphicsRootDescriptorTable(1, gpuHandle); 
+
 					_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
 					_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
@@ -905,14 +953,15 @@ void Application::Run() {
 		// Fenceによる同期待ち
 		WaitDrawDone();
 
-		_cmdAllocator->Reset();//キューをクリア
-		_cmdList->Reset(_cmdAllocator.Get(), _pipelineState.Get());//再びコマンドリストをためる準備
+		_cmdAllocator->Reset();
+		_cmdList->Reset(_cmdAllocator.Get(), _pipelineState.Get());
 		//フリップ 1は待ちframe数(待つべきvsyncの数), 2にすると30fpsになる
 		_swapchain->Present(2, 0);
 	}
 }
 
 void Application::Terminate() {
+	CleanupImGui();
 	delete windowManager;
 	delete _modelImporter;
 }
