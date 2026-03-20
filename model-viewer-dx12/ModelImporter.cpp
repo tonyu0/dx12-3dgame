@@ -34,15 +34,15 @@ void ModelImporter::LoadMesh(aiMesh* mesh) {
 	}
 
 	{ // 3. 頂点情報の読み込み: weight, boneid
-		auto AddBoneInfo = [](ModelViewer::Vertex& v, int boneid, double weight) {
+		auto AddBoneInfo = [](ModelViewer::Vertex& v, int boneid, float weight) {
 			if (v.weight[0] < weight) {
 				v.weight[1] = v.weight[0];
 				v.boneid[1] = v.boneid[0];
-				v.weight[0] = (float)weight;
+				v.weight[0] = weight;
 				v.boneid[0] = boneid;
 			}
 			else if (v.weight[1] < weight) {
-				v.weight[1] = (float)weight;
+				v.weight[1] = weight;
 				v.boneid[1] = boneid;
 			}
 			};
@@ -78,7 +78,7 @@ void ModelImporter::LoadMesh(aiMesh* mesh) {
 	}
 }
 
-bool ModelImporter::CreateFbxManager(const std::string& inFbxFileName) {
+bool ModelImporter::CreateModelImporter(const std::string& inFbxFileName) {
 	// ボーン更新時等にscene->mRootNoteが必要になるのでsceneが破棄されないようにimporterをメンバにしている
 	scene = importer.ReadFile(inFbxFileName, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
 
@@ -97,21 +97,7 @@ bool ModelImporter::CreateFbxManager(const std::string& inFbxFileName) {
 		// (各aiNodeAnimはmPositionKeys, mRotationKeys, mScalingKeysがあり、ここから変換行列を作る)
 		// 各aiNodeがどのaiNodeAnimに影響を受けるかをstd::map<string, aiNodeAnim*>に保管しておき、後でscene->mRootNodeから再帰的にノードを走査して、各フレームでの変換行列を構築する必要がある
 		if (scene->mNumAnimations > 0) {
-			for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
-				std::cout << i << " th Animation Name is " << scene->mAnimations[i]->mName.C_Str() << std::endl;
-				
-				for (unsigned int j = 0; j < scene->mAnimations[i]->mNumChannels; ++j) {
-					aiNodeAnim* node_anim = scene->mAnimations[i]->mChannels[j];
-					node_anim_map[node_anim->mNodeName.C_Str()] = node_anim;
-				}
-
-				mAnimDurationTicks = scene->mAnimations[i]->mDuration;
-				mAnimTicksPerSecond = scene->mAnimations[i]->mTicksPerSecond != 0 ? scene->mAnimations[i]->mTicksPerSecond : 25.;
-				mAnimCurrentTicks = 0.;
-
-				// TODO: select animations
-				break;
-			}
+			SetCurrentAnimation(0);
 		}
 	}
 
@@ -125,8 +111,60 @@ bool ModelImporter::CreateFbxManager(const std::string& inFbxFileName) {
 	return true;
 }
 
-void ModelImporter::UpdateBoneMatrices(double deltaTime) {
-	mAnimCurrentTicks = fmod(mAnimCurrentTicks + mAnimTicksPerSecond * deltaTime, mAnimDurationTicks);
+ModelViewer::AnimState ModelImporter::GetDefaultAnimState() {
+	ModelViewer::AnimState animState;
+
+	animState.sceneAnimCount = scene->mNumAnimations;
+	if (animState.sceneAnimCount > 0) {
+		animState.currentAnimIdx = 0;
+		animState.currentAnimDuration = (float)scene->mAnimations[0]->mDuration / mAnimTicksPerSecond;
+		for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+			animState.animationNames.push_back(scene->mAnimations[i]->mName.C_Str());
+		}
+	}
+	animState.isLooping = true;
+	animState.isPlaying = true;
+	animState.playingTime = 0.f;
+	animState.playingSpeed = 1.f;
+
+	return animState;
+}
+
+void ModelImporter::SetCurrentAnimation(UINT currentAnimIdx) {
+	if (currentAnimIdx >= scene->mNumAnimations) {
+		std::cout << "Invalid animation index specified!" << std::endl;
+		return;
+	}
+
+	node_anim_map.clear();
+	for (unsigned int j = 0; j < scene->mAnimations[currentAnimIdx]->mNumChannels; ++j) {
+		aiNodeAnim* node_anim = scene->mAnimations[currentAnimIdx]->mChannels[j];
+		node_anim_map[node_anim->mNodeName.C_Str()] = node_anim;
+	}
+
+	mCurrentAnimIdx = currentAnimIdx;
+	mAnimDurationTicks = (float)scene->mAnimations[currentAnimIdx]->mDuration;
+	mAnimTicksPerSecond = scene->mAnimations[currentAnimIdx]->mTicksPerSecond != 0 ? (float)scene->mAnimations[currentAnimIdx]->mTicksPerSecond : 25.f;
+	mAnimCurrentTicks = 0.;
+}
+
+void ModelImporter::UpdateBoneMatrices(float deltaTime, ModelViewer::AnimState &animState) {
+	if (animState.isPlaying) {
+		mAnimCurrentTicks = mAnimCurrentTicks + mAnimTicksPerSecond * deltaTime * animState.playingSpeed;
+	}
+
+	if (animState.isLooping) {
+		mAnimCurrentTicks = fmod(mAnimCurrentTicks, mAnimDurationTicks);
+	}
+	else {
+		mAnimCurrentTicks = std::fmin(mAnimCurrentTicks, mAnimDurationTicks - 0.01f); // Setting exact value leads to broken model due to decimal error, substract some small value
+	}
+
+	if (mCurrentAnimIdx != animState.currentAnimIdx) {
+		SetCurrentAnimation(animState.currentAnimIdx);
+	}
+	animState.playingTime = mAnimCurrentTicks / mAnimTicksPerSecond;
+	animState.currentAnimDuration = mAnimDurationTicks / mAnimTicksPerSecond;
 	
 	UpdateBoneMatrices_internal(scene->mRootNode, scene->mRootNode->mTransformation);
 }
@@ -158,7 +196,7 @@ void ModelImporter::UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4x4
 	}
 }
 
-aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, double animationTime) {
+aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, float animationTime) {
 	//if(pNodeAnim->mNumPositionKeys < 2) {}
 
 	aiVector3D interpolatedPos, interpolatedScale;
@@ -175,9 +213,9 @@ aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, dou
 		}
 
 		// 2. 補間係数を計算
-		double t1 = pNodeAnim->mPositionKeys[targetPosKeyIdx].mTime;
-		double t2 = pNodeAnim->mPositionKeys[targetPosKeyIdx + 1].mTime;
-		double factor = (animationTime - t1) / (t2 - t1);
+		float t1 = (float)pNodeAnim->mPositionKeys[targetPosKeyIdx].mTime;
+		float t2 = (float)pNodeAnim->mPositionKeys[targetPosKeyIdx + 1].mTime;
+		float factor = (animationTime - t1) / (t2 - t1);
 
 		// 3. 補間計算
 		// ----- Lerp to position -----
@@ -198,9 +236,9 @@ aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, dou
 		}
 
 		// 2. 補間係数を計算
-		double t1 = pNodeAnim->mScalingKeys[targetScaleKeyIdx].mTime;
-		double t2 = pNodeAnim->mScalingKeys[targetScaleKeyIdx + 1].mTime;
-		double factor = (animationTime - t1) / (t2 - t1);
+		float t1 = (float)pNodeAnim->mScalingKeys[targetScaleKeyIdx].mTime;
+		float t2 = (float)pNodeAnim->mScalingKeys[targetScaleKeyIdx + 1].mTime;
+		float factor = (animationTime - t1) / (t2 - t1);
 
 		// ----- Lerp to scale -----
 		aiVector3D startScale = pNodeAnim->mScalingKeys[targetScaleKeyIdx].mValue;
@@ -220,9 +258,9 @@ aiMatrix4x4 ModelImporter::InterpolateTransform(const aiNodeAnim* pNodeAnim, dou
 		}
 
 		// 2. 補間係数を計算
-		double t1 = pNodeAnim->mRotationKeys[targetRotKeyIdx].mTime;
-		double t2 = pNodeAnim->mRotationKeys[targetRotKeyIdx + 1].mTime;
-		double factor = (animationTime - t1) / (t2 - t1);
+		float t1 = (float)pNodeAnim->mRotationKeys[targetRotKeyIdx].mTime;
+		float t2 = (float)pNodeAnim->mRotationKeys[targetRotKeyIdx + 1].mTime;
+		float factor = (animationTime - t1) / (t2 - t1);
 
 		// ----- Slerp to rotation -----
 		aiQuaternion startRot = pNodeAnim->mRotationKeys[targetRotKeyIdx].mValue;

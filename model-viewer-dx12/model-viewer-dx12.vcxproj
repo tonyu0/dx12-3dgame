@@ -132,7 +132,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\assimp\build\include;$(SolutionDir)external\DirectX-Headers\include\directx;$(SolutionDir)external\DirectXTex\DirectXTex;$(SolutionDir)external\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\assimp\build\include;$(SolutionDir)external\assimp\include;$(SolutionDir)external\DirectX-Headers\include\directx;$(SolutionDir)external\DirectXTex\DirectXTex;$(SolutionDir)external\imgui</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -144,6 +144,9 @@
     <FxCompile>
       <ShaderModel>5.0</ShaderModel>
     </FxCompile>
+    <PostBuildEvent>
+      <Command>xcopy /y /s /i "$(SolutionDir)external\assimp\build\bin\Debug\*.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -153,7 +156,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\assimp\build\include;$(SolutionDir)external\DirectX-Headers\include\directx;$(SolutionDir)external\DirectXTex\DirectXTex;$(SolutionDir)external\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\assimp\build\include;$(SolutionDir)external\assimp\include;$(SolutionDir)external\DirectX-Headers\include\directx;$(SolutionDir)external\DirectXTex\DirectXTex;$(SolutionDir)external\imgui</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -170,6 +173,9 @@
       <EntryPointName>main</EntryPointName>
       <ShaderModel>5.0</ShaderModel>
     </FxCompile>
+    <PostBuildEvent>
+      <Command>xcopy /y /s /i "$(SolutionDir)external\assimp\build\bin\Release\*.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\external\imgui\backends\imgui_impl_dx12.cpp" />

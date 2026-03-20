@@ -52,7 +52,7 @@ private:
 	class TDX12RootSignature* m_rootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
-	class TDX12DescriptorHeap* mResourceDescriptorHeapWrapper = nullptr; // Descriptor Heap Wrapper for CBV, SRV, UAV
+	static class TDX12DescriptorHeap* g_resourceDescriptorHeapWrapper; // Descriptor Heap Wrapper for CBV, SRV, UAV
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeaps = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvHeap = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessRTVHeap = nullptr;
@@ -89,6 +89,7 @@ private:
 
 	// ImGui
 	void SetupImGui();
+	void DrawImGui(bool showAnimationSettings, ModelViewer::AnimState& animState);
 	void CleanupImGui();
 
 	// Singleton: private constructor

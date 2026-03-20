@@ -33,10 +33,14 @@ void TWindowManager::Initialize() {
 		nullptr);//追加パラメータ
 }
 
-// LRESULT? HWND?
-// ウィンドウが出続けてる間マイフレーム呼ばれる？
-// Window生成時に渡すコールバック関数
-LRESULT TWindowManager::WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+// Code from: https://github.com/ocornut/imgui/blob/master/examples/example_win32_directx12/main.cpp
+// Forward declare message handler from imgui_impl_win32.cpp
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+LRESULT TWindowManager::WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) { // HWND: Handle to Window, LRESULT: Long Result
+	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) // Calling this function enables actions like a clicking event on ImGui
+		return true;
+
 	// ウィンドウ破棄時
 	if (msg == WM_DESTROY) {
 		PostQuitMessage(0);

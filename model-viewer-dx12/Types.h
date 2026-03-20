@@ -40,4 +40,14 @@ namespace ModelViewer {
 		float Alpha;
 	};
 
+	struct AnimState {
+		int		sceneAnimCount = 0;
+		int		currentAnimIdx = 0;
+		float	currentAnimDuration = 0.;
+		float	playingTime = 0.;
+		float	playingSpeed = 1.;
+		bool	isPlaying = true;
+		bool	isLooping = true;
+		std::vector<std::string> animationNames;
+	};
 };

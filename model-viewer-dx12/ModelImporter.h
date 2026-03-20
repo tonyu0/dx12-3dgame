@@ -12,7 +12,7 @@ public:
 			boneMatrices[i] = DirectX::XMMatrixIdentity();
 		}
 	}
-	bool CreateFbxManager(const std::string& inFbxFileName);
+	bool CreateModelImporter(const std::string& inFbxFileName);
 private:
 	void LoadMesh(aiMesh* mesh);
 	std::string GetExtension(const std::string& path) {
@@ -24,14 +24,15 @@ private:
 		return path.substr(idx + 1, path.length() - idx - 1);
 	}
 	void UpdateBoneMatrices_internal(aiNode* pNode, const aiMatrix4x4& parentTransform);
-	static aiMatrix4x4 InterpolateTransform(const aiNodeAnim* pNodeAnim, double animationTime);
+	static aiMatrix4x4 InterpolateTransform(const aiNodeAnim* pNodeAnim, float animationTime);
 
 	Assimp::Importer importer;
 	const aiScene* scene;
 	std::map<std::string, ModelViewer::Material> raw_materials;
 
 	// Animation Parameters
-	double mAnimCurrentTicks = 0., mAnimDurationTicks = 0., mAnimTicksPerSecond = 0.;
+	UINT mCurrentAnimIdx = 0;
+	float mAnimCurrentTicks = 0., mAnimDurationTicks = 0., mAnimTicksPerSecond = 0.;
 
 public:
 	std::map<std::string, std::vector<ModelViewer::Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。
@@ -54,5 +55,9 @@ public:
 	aiMatrix4x4 globalInverseTransform;
 	// Animation
 	DirectX::XMMATRIX ConvertFbxMatrix(const aiMatrix4x4& src);
-	void UpdateBoneMatrices(double deltaTime);
+	void UpdateBoneMatrices(float deltaTime, ModelViewer::AnimState &animState);
+
+	// ImGui operation
+	ModelViewer::AnimState GetDefaultAnimState();
+	void SetCurrentAnimation(UINT currentAnimIdx);
 };

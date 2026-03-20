@@ -8,6 +8,7 @@
 using namespace ModelViewer;
 
 static constexpr int APP_NUM_FRAMES_IN_FLIGHT = 2;
+TDX12DescriptorHeap* Application::g_resourceDescriptorHeapWrapper = nullptr;
 
 // @brief	コンソールにフォーマット付き文字列を表示
 // @param	format フォーマット %d or %f etc
@@ -508,8 +509,8 @@ void Application::CreateCBV() {
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
 	}
-	mResourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer);
-	mResourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer);
+	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer);
+	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer);
 }
 
 void Application::WaitDrawDone() {
@@ -530,7 +531,7 @@ void Application::WaitDrawDone() {
 }
 
 void Application::SetupImGui() {
-	// https://github.com/ocornut/imgui/blob/master/examples/example_win32_directx12/main.cpp
+	// Code from: https://github.com/ocornut/imgui/blob/master/examples/example_win32_directx12/main.cpp
 	
 	// Make process DPI aware and obtain main monitor scale
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -555,21 +556,70 @@ void Application::SetupImGui() {
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(windowManager->GetHandle());
 
-	//ImGui_ImplDX12_InitInfo init_info = {};
-	//init_info.Device = _dev.Get();
-	//init_info.CommandQueue = _cmdQueue.Get();
-	//init_info.NumFramesInFlight = APP_NUM_FRAMES_IN_FLIGHT;
-	//init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	//init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
-	//// Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
-	//// (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
-	//init_info.SrvDescriptorHeap = mResourceDescriptorHeapWrapper->GetAddressOf();
-	//init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { return g_pd3dSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle); };
-	//init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) { return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
-	//ImGui_ImplDX12_Init(&init_info);
+	ImGui_ImplDX12_InitInfo init_info = {};
+	init_info.Device = _dev.Get();
+	init_info.CommandQueue = _cmdQueue.Get();
+	init_info.NumFramesInFlight = APP_NUM_FRAMES_IN_FLIGHT;
+	init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	// Allocating SRV descriptors (for textures) is up to the application, so we provide callbacks.
+	// (current version of the backend will only allocate one descriptor, future versions will need to allocate more)
+	init_info.SrvDescriptorHeap = g_resourceDescriptorHeapWrapper->Get();
+	init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle) { return g_resourceDescriptorHeapWrapper->AllocDynamic(out_cpu_handle, out_gpu_handle); };
+	init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) { return g_resourceDescriptorHeapWrapper->FreeDynamic(cpu_handle, gpu_handle); };
+	ImGui_ImplDX12_Init(&init_info);
 	
 	// ImGuiはこちらのシェーダー側で飼養するわけではないので、RootSignature側で特にシェーダー側での使い方を定義する必要はない。
 	// DescriptorHeap上のD3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLEが使用時に取れれば良い。
+}
+
+void Application::DrawImGui(bool showAnimationSettings, ModelViewer::AnimState& animState) {
+	
+		ImGuiIO& io = ImGui::GetIO();
+
+		// Start the Dear ImGui frame
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+		// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+		//if (show_demo_window)
+			//ImGui::ShowDemoWindow(&show_demo_window);
+
+		{
+			ImGui::Begin("Animation Settings");
+
+
+			ImGui::Checkbox("Is Playing", &animState.isPlaying);
+			ImGui::Checkbox("Is Looping", &animState.isLooping);
+
+			ImGui::SliderFloat("Playing Time", &animState.playingTime, 0.f, animState.currentAnimDuration);
+			ImGui::SliderFloat("Playing Speed", &animState.playingSpeed, 0.f, 3.f);
+
+			ImGui::Text("Scene Animation Count = %d", animState.sceneAnimCount);
+			if (animState.sceneAnimCount > 0) {
+				if (ImGui::BeginCombo("Selected Animation", animState.animationNames[animState.currentAnimIdx].c_str())) {
+					for (int i = 0; i < animState.animationNames.size(); ++i) {
+						bool isSelected = (i == animState.currentAnimIdx);
+						if (ImGui::Selectable(animState.animationNames[i].c_str(), isSelected)) {
+							animState.currentAnimIdx = i;
+						}
+						if (isSelected) {
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}
+			}
+
+			//ImGui::SameLine();
+
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::End();
+		}
+
+		// Rendering
+		ImGui::Render();
+	
 }
 
 void Application::CleanupImGui() {
@@ -591,8 +641,8 @@ bool Application::Init() {
 	CreateDevice();
 	CreateCommandList(D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-	{
-		mResourceDescriptorHeapWrapper = new TDX12DescriptorHeap(_dev.Get());
+	if (g_resourceDescriptorHeapWrapper == nullptr) {
+		g_resourceDescriptorHeapWrapper = new TDX12DescriptorHeap(_dev.Get());
 	}
 
 	// ImGui setup requires Device, CommandQueue, SRV Descriptor Heap.
@@ -603,7 +653,10 @@ bool Application::Init() {
 	std::string fbxFileName = "../model-viewer-dx12/assets/scene.gltf";
 
 	_modelImporter = new ModelImporter();
-	_modelImporter->CreateFbxManager(fbxFileName);
+	if (!_modelImporter->CreateModelImporter(fbxFileName)) {
+		std::cout << "Failed to create Model Importer." << std::endl;
+		return false;
+	}
 	// 
 	m_rootSignature = new TDX12RootSignature();
 	m_rootSignature->Initialize(_dev.Get());
@@ -777,17 +830,20 @@ void Application::Run() {
 		const std::string& textureFilename = std::string("../model-viewer-dx12/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
-		mResourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource);
+		g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource);
 	}
 
-	if (mResourceDescriptorHeapWrapper->GetRegisteredResourceNum() == 0) {
-		std::cerr << "[LOAD ERROR] Model data or Material data seems to be unloaded." << std::endl;
+	if (g_resourceDescriptorHeapWrapper->numResources == 0) {
+		std::cout << "[LOAD ERROR] Model data or Material data seems to be unloaded." << std::endl;
 		exit(EXIT_FAILURE);
 	}
 
 
 	MSG msg = {};
 	float angle = .0;
+
+	bool showAnimationSettings = true;
+	AnimState animState = _modelImporter->GetDefaultAnimState();
 
 	std::chrono::steady_clock::time_point previousFrameTime = std::chrono::high_resolution_clock::now();
 	// Render系のCmdListとかContextみたいなのにまとめる
@@ -804,14 +860,16 @@ void Application::Run() {
 
 		{ // Deltatime
 			std::chrono::steady_clock::time_point currentFrameTime = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double> deltaTime = currentFrameTime - previousFrameTime;
+			std::chrono::duration<float> deltaTime = currentFrameTime - previousFrameTime;
 			previousFrameTime = currentFrameTime;
 
 			// Update bone matrices
-			_modelImporter->UpdateBoneMatrices(deltaTime.count());
+			_modelImporter->UpdateBoneMatrices(deltaTime.count(), animState);
 			// Upload bone CBV after updating bone matrices
 			std::copy(_modelImporter->boneMatrices, _modelImporter->boneMatrices + 256, _mapTransformMatrix->bones);
 		}
+
+		DrawImGui(showAnimationSettings, animState);
 
 
 		angle += 0.01f;
@@ -867,9 +925,9 @@ void Application::Run() {
 			}
 
 			{// Set Resource DescriptorHeap
-				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(mResourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
+				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(g_resourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
 				auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				_cmdList->SetDescriptorHeaps(1, mResourceDescriptorHeapWrapper->GetAddressOf());
+				_cmdList->SetDescriptorHeaps(1, g_resourceDescriptorHeapWrapper->GetAddressOf());
 
 				_cmdList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 				gpuHandle.ptr += srvIncSize * 2; // b0, b1
@@ -943,7 +1001,7 @@ void Application::Run() {
 			);
 			_cmdList->ResourceBarrier(1, &afterDrawTransitionDesc);
 		}
-
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _cmdList.Get());
 
 		_cmdList->Close();
 		// コマンドリストは複数渡せる？コマンドリストのリストを作成

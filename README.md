@@ -12,6 +12,7 @@ This project focuses on low-level graphics programming.
 - Root signature design
 - Descriptor heap management
 - Shadow mapping
+- Control various animation properties from ImGui
 
 ### Planned
 - GPU skinning (compute shader)
@@ -19,8 +20,9 @@ This project focuses on low-level graphics programming.
 - Physically Based Rendering (PBR)
 - Image-Based Lighting (IBL)
 
-### Current progress (v0.1.0)
-<img width="682" height="452" alt="2026-03-18 (5)" src="https://github.com/user-attachments/assets/6c161ce7-5d1c-42cf-824f-0f6982593a07" />
+### Current progress (v0.2.0)
+
+<img width="682" height="452" alt="Image" src="https://github.com/user-attachments/assets/b7c54acf-6e3c-41a8-9acd-591a2a46b332" />
 
 A skinned animated model rendered with:
 - basic lighting
@@ -48,12 +50,4 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
-### 3. Move necessary files
-* Copy ```external/assimp/include``` to ```external/assimp/build/include```
-> [!NOTE]
-assimp include directory of this project is external/assimp/build/include
-
-
-* Move assimp-vc145-mtd.dll to the same location as the project's binary files.
-
-### 4. Open the solution file (.sln) and build in Visual Studio.
+### 3. Open the solution file (.sln) and build in Visual Studio.
