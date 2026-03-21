@@ -53,11 +53,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
 
 	static class TDX12DescriptorHeap* g_resourceDescriptorHeapWrapper; // Descriptor Heap Wrapper for CBV, SRV, UAV
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeaps = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeap = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvHeap = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessRTVHeap = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _postProcessSRVHeap = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _depthSRVHeap = nullptr;
 
 	// for Post Process Additional Path
 	Microsoft::WRL::ComPtr<ID3D12Resource> _postProcessResource = nullptr;

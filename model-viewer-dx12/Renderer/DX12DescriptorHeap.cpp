@@ -7,30 +7,41 @@ static constexpr int NUM_DESCRIPTORS = 128;
 /**
 * @brief Make sure you add the resources in the correct order
 */
-void TDX12DescriptorHeap::AddConstantBuffer(ID3D12Device* pDev, TDX12ConstantBuffer* constantBuffer) {
-	if (!constantBuffer->IsValid()) {
+void TDX12DescriptorHeap::AddConstantBuffer(ID3D12Device* pDev, ID3D12Resource* constantBuffer) {
+	if (constantBuffer == nullptr) {
 		std::cout << "Given Constant Buffer was nullptr!" << std::endl;
 		return;
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
 	cpuHandle.ptr = m_heapStartCPU.ptr + m_heapHandleIncSize * numResources;
-	constantBuffer->CreateView(cpuHandle, pDev);
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = (UINT)constantBuffer->GetDesc().Width;
+	pDev->CreateConstantBufferView(&cbvDesc, cpuHandle);
 
 	++numResources;
 }
 /**
 * @brief Make sure you add the resources in the correct order
 */
-void TDX12DescriptorHeap::AddShaderResource(ID3D12Device* pDev, TDX12ShaderResource* shaderResource) {
-	if (!shaderResource->IsValid()) {
+void TDX12DescriptorHeap::AddShaderResource(ID3D12Device* pDev, ID3D12Resource* shaderResource, DXGI_FORMAT shaderResourceFormat) {
+	if (shaderResource == nullptr) {
 		std::cout << "Given Shader Resource was nullptr!" << std::endl;
 		return;
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
 	cpuHandle.ptr = m_heapStartCPU.ptr + m_heapHandleIncSize * numResources;
-	shaderResource->CreateView(cpuHandle, pDev);
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = shaderResourceFormat;//DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
+	// TODO : ↑テクスチャ読めてない場合など, FormatがUnknownとかだとエラーになりデバイスが落ちる(Resrouce(実際のメモリ上の生データ)とView(メモリ上のデータをどう解釈するか))
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	// 画像データのRGBSの情報がそのまま捨て宇されたフォーマットに、データ通りの順序で割り当てられているか
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;//2Dテクスチャ
+	srvDesc.Texture2D.MipLevels = 1;//ミップマップは使用しないので1
+	pDev->CreateShaderResourceView(shaderResource, &srvDesc, cpuHandle);
 
 	++numResources;
 }

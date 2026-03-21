@@ -8,8 +8,8 @@ class TDX12DescriptorHeap {
 public:
 	TDX12DescriptorHeap() = delete;
 	explicit TDX12DescriptorHeap(ID3D12Device* pDev);
-	void AddConstantBuffer(ID3D12Device* pDev, TDX12ConstantBuffer* constantBuffer);
-	void AddShaderResource(ID3D12Device* pDev, TDX12ShaderResource* shaderResource);
+	void AddConstantBuffer(ID3D12Device* pDev, ID3D12Resource* constantBuffer);
+	void AddShaderResource(ID3D12Device* pDev, ID3D12Resource* shaderResource, DXGI_FORMAT shaderResourceFormat);
 	void AllocDynamic(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescHandle, D3D12_GPU_DESCRIPTOR_HANDLE* gpuDescHandle);
 	void FreeDynamic(D3D12_CPU_DESCRIPTOR_HANDLE cpuDescHandle, D3D12_GPU_DESCRIPTOR_HANDLE gpuDescHandle);
 

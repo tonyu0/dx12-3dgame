@@ -24,11 +24,3 @@ void TDX12ConstantBuffer::Initialize(size_t size, ID3D12Device* device) {
 void TDX12ConstantBuffer::Map(void** toMap) {
 	HRESULT result = m_constantBuffer->Map(0, nullptr, toMap);
 }
-
-// Called from Descriptor Heap
-void TDX12ConstantBuffer::CreateView(D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptorHandle, ID3D12Device* device) {
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = (UINT)m_constantBuffer->GetDesc().Width;
-	device->CreateConstantBufferView(&cbvDesc, cpuDescriptorHandle);
-}

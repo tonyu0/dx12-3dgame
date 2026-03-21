@@ -123,7 +123,7 @@ void Application::CreateSwapChain() {
 
 	// スワップチェーン: バックバッファは一応テクスチャなどその他データと同じくVRAM上に確保される。
 	// vsyncとか色々あるけど、更新タイミングでスワップチェーンがバッファを入れ替え、先ほどまで描き込んでいたバックバッファがディスプレイ上で走査され、映像となる。
-	D3D12_CPU_DESCRIPTOR_HANDLE handle = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE handle = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -187,34 +187,23 @@ void Application::CreateDepthStencilView() {
 	descHeapDesc.NumDescriptors = 2; // 0: normal depth, 1: light depth
 	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	CheckError("CreateDepthDescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_dsvHeap.ReleaseAndGetAddressOf())));
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	CheckError("CreateDepthDescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_depthSRVHeap.ReleaseAndGetAddressOf())));
 
 	// CreateDepthStencilView
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;//デプス値に32bit使用
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;//2Dテクスチャ
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;//フラグは特になし
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
 	_dev->CreateDepthStencilView(_depthBuffer.Get(), &dsvDesc, dsvHandle);
 	dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	_dev->CreateDepthStencilView(_lightDepthBuffer.Get(), &dsvDesc, dsvHandle);
 
 	// CreateDepthSRV
-	D3D12_SHADER_RESOURCE_VIEW_DESC resDesc = {};
-	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	resDesc.Texture2D.MipLevels = 1;
-	resDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	resDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	D3D12_CPU_DESCRIPTOR_HANDLE dsvSRVHandle = _depthSRVHeap->GetCPUDescriptorHandleForHeapStart();
-	_dev->CreateShaderResourceView(_depthBuffer.Get(), &resDesc, dsvSRVHandle);
-	dsvSRVHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	_dev->CreateShaderResourceView(_lightDepthBuffer.Get(), &resDesc, dsvSRVHandle);
+	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _depthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
+	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _lightDepthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
 }
 
 void Application::CreatePostProcessResourceAndView() {
-	auto heapDesc = _rtvHeaps->GetDesc();
 	auto resDesc = g_pRenderTargets[0]->GetDesc();
 	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	float val[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -229,25 +218,18 @@ void Application::CreatePostProcessResourceAndView() {
 		IID_PPV_ARGS(_postProcessResource.ReleaseAndGetAddressOf())
 	));
 
-	// Create Descriptor Heap
-	heapDesc.NumDescriptors = 1;
-	CheckError("CreateDescriptorHeapRTVPostProcess", _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_postProcessRTVHeap.ReleaseAndGetAddressOf())));
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	CheckError("CreateDescriptorHeapSRVPostProcess", _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_postProcessSRVHeap.ReleaseAndGetAddressOf())));
-
 	// Create RTV/SRV View
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D; // is it saying draw pixels as 2d texture?
-	_dev->CreateRenderTargetView(_postProcessResource.Get(), &rtvDesc, _postProcessRTVHeap->GetCPUDescriptorHandleForHeapStart());
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	_dev->CreateShaderResourceView(_postProcessResource.Get(), &srvDesc, _postProcessSRVHeap->GetCPUDescriptorHandleForHeapStart());
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
+	cpuHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) * 2; // RenderTarget * 2
+	_dev->CreateRenderTargetView(_postProcessResource.Get(), &rtvDesc, cpuHandle);
+
+	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _postProcessResource.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+	// MEMO: _postProcessResource is used both as Render Target and Shader Resource. 
+	// Through _postProcessRTVHeap, write draw output of first pass to _postProcessResource. After that, through _postProcessSRVHeap, use it as texture for post processing.
 }
 
 bool Application::CreatePipelineState() {
@@ -509,8 +491,8 @@ void Application::CreateCBV() {
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
 	}
-	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer);
-	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer);
+	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer->m_constantBuffer);
+	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer->m_constantBuffer);
 }
 
 void Application::WaitDrawDone() {
@@ -665,13 +647,13 @@ bool Application::Init() {
 		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		descHeapDesc.NumDescriptors = 2; // 表裏
-		CheckError("Create RTV DescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_rtvHeaps.ReleaseAndGetAddressOf())));
+		descHeapDesc.NumDescriptors = 3; // 表 + 裏 + ポストプロセス用
+		CheckError("Create RTV DescriptorHeap", _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(_rtvHeap.ReleaseAndGetAddressOf())));
 	}
 	CreateSwapChain();
-	CreateDepthStencilView();
 
 	CreatePostProcessResourceAndView();
+	CreateDepthStencilView();
 
 	// Create Fence
 	CheckError("CreateFence", _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)));
@@ -830,7 +812,7 @@ void Application::Run() {
 		const std::string& textureFilename = std::string("../model-viewer-dx12/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
-		g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource);
+		g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource->m_shaderResource, shaderResource->m_textureMetadata.format);
 	}
 
 	if (g_resourceDescriptorHeapWrapper->numResources == 0) {
@@ -869,9 +851,6 @@ void Application::Run() {
 			std::copy(_modelImporter->boneMatrices, _modelImporter->boneMatrices + 256, _mapTransformMatrix->bones);
 		}
 
-		DrawImGui(showAnimationSettings, animState);
-
-
 		angle += 0.01f;
 		_mapTransformMatrix->world = XMMatrixRotationY(angle) * XMMatrixTranslation(0, 0, 0);
 		_mapSceneMatrix->view = _vMatrix;
@@ -883,16 +862,26 @@ void Application::Run() {
 
 		//{ // 0. Shadow pipeline (shadow map light depth)
 		//	// depthはbarrierとかいらない?
-		//	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-		//	dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-		//	_cmdList->OMSetRenderTargets(0, nullptr, false, &dsvHandle); // no need RT
-		//	_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+		//	{
+		//		D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		//		dsvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+		//		_cmdList->OMSetRenderTargets(0, nullptr, false, &dsvHandle); // no need RT
+		//		_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-		//	_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
-		//	_cmdList->SetPipelineState(_shadowPipelineState.Get());
+		//		_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
+		//		_cmdList->SetPipelineState(_shadowPipelineState.Get());
+		//	}
 
-		//	_cmdList->SetDescriptorHeaps(1, mResourceDescriptorHeapWrapper->GetAddressOf());
-		//	_cmdList->SetGraphicsRootDescriptorTable(0, mResourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart()); 
+
+		//	{ // Heap start -> SRV of _postProcessResource -> SRV of _depthBuffer -> SRV of _lightDepthBuffer
+		//		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(g_resourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
+		//		auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		//		gpuHandle.ptr += srvIncSize; // TODO: remove? (SRV of _postProcessResource is the first SRV created from Application::CreateDepthStencilView())
+		//		gpuHandle.ptr += srvIncSize * 2; // TODO: remove?
+
+		//		_cmdList->SetDescriptorHeaps(1, g_resourceDescriptorHeapWrapper->GetAddressOf());
+		//		_cmdList->SetGraphicsRootDescriptorTable(0, g_resourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
+		//	}
 
 		//	for (auto itr : _modelImporter->mesh_vertices) {
 		//		std::string name = itr.first;
@@ -905,7 +894,7 @@ void Application::Run() {
 
 		{ // 1 pass
 			// これunionらしい。Transition, Aliasing, UAV バリアがある。
-			auto beforeDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
+			D3D12_RESOURCE_BARRIER beforeDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
 				_postProcessResource.Get(),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_RENDER_TARGET
@@ -914,11 +903,12 @@ void Application::Run() {
 
 			{
 				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-				D3D12_CPU_DESCRIPTOR_HANDLE postProcessRTV = _postProcessRTVHeap->GetCPUDescriptorHandleForHeapStart();
-				_cmdList->OMSetRenderTargets(1, &postProcessRTV, false, &dsvHandle);
+				D3D12_CPU_DESCRIPTOR_HANDLE postProcessRTVHandle = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
+				postProcessRTVHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) * 2; // g_pRenderTargets[0], g_pRenderTargets[1], _postProcessResource
+				_cmdList->OMSetRenderTargets(1, &postProcessRTVHandle, false, &dsvHandle);
 				// draw
 				float clearColor[] = { 1.0f,1.0f,1.0f,1.0f };
-				_cmdList->ClearRenderTargetView(postProcessRTV, clearColor, 0, nullptr);
+				_cmdList->ClearRenderTargetView(postProcessRTVHandle, clearColor, 0, nullptr);
 				_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 				_cmdList->SetGraphicsRootSignature(m_rootSignature->GetRootSignaturePointer());
 				_cmdList->SetPipelineState(_pipelineState.Get());
@@ -929,18 +919,21 @@ void Application::Run() {
 				auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				_cmdList->SetDescriptorHeaps(1, g_resourceDescriptorHeapWrapper->GetAddressOf());
 
+				{ // Heap start -> SRV of _postProcessResource -> SRV of _depthBuffer -> SRV of _lightDepthBuffer
+					gpuHandle.ptr += srvIncSize; // TODO: remove? (SRV of _postProcessResource is the first SRV created from Application::CreateDepthStencilView())
+					_cmdList->SetGraphicsRootDescriptorTable(2, gpuHandle);
+					gpuHandle.ptr += srvIncSize * 2; // TODO: remove?
+				}
+
+				// SetGraphicsRootDescriptorTable: この関数の役割は、Descriptor Heap内の特定の場所(handle)とRoot Signatureで定義されたスロットをバインドし、シェーダー側から扱えるようにする。
+				// SetGraphicsRootDescriptorTableの第一引数はRootParameterのindex(setting in TDX12RootSignature::Initialize)
+				// CBV0, CBV1 -> b0, b1, SRV0, SRV1, SRV2 -> t0, t1, t2という紐づけをまとめてできるが、DescriptorHeapに積む順番はこの通りにする必要があるし、同じDescriptorHeap上に別のDescriptorTableを適用したい場合は先頭アドレスを再度動かす必要がある。
+				// BasicShader.hlslのt1（メッシュのテクスチャ）だけは更新頻度が異なるので、別のDescriptorTableに割り当てたうえで、メッシュごとに[1. DesciptorHandleを移動させる]->[2. DescriptorTableを適用する]->[3. 描画する]としている。
 				_cmdList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 				gpuHandle.ptr += srvIncSize * 2; // b0, b1
 
-				//D3D12_GPU_DESCRIPTOR_HANDLE depthSRVHandle = _depthSRVHeap->GetGPUDescriptorHandleForHeapStart();
-				//_cmdList->SetGraphicsRootDescriptorTable(2, depthSRVHandle);
-
 				for (auto itr : _modelImporter->mesh_vertices) {
 					std::string name = itr.first;
-					// SetGraphicsRootDescriptorTable: RootParam[1]で定義したDescriptorTableに、gpuHandleで指示されるDescriptorHeapを割り当てる。
-					// ヒープの開始地点を教えるから、そこから先はシェーダー側でOffsetを使って自由に読み取って。とすることで効率化
-					// RootParam[1]側でシェーダー側のt1にテクスチャが読み込まれるようにしている(See TDX12RootSignature::Initialize)
-					// DescriptorHeap側にはメッシュごとのテクスチャ(のView)が大量にあるが、そのシェーダー側の使い方としては、RootParam[1]で定義しているのみ
 					_cmdList->SetGraphicsRootDescriptorTable(1, gpuHandle); 
 
 					_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -964,9 +957,6 @@ void Application::Run() {
 		{ // 2 pass
 			// Transition RTV state from PRESENT to RENDER
 			UINT bbIdx = _swapchain.Get()->GetCurrentBackBufferIndex();
-			auto rtvH = _rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-			if (bbIdx) rtvH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
 			D3D12_RESOURCE_BARRIER beforeDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
 				g_pRenderTargets[bbIdx].Get(),
 				D3D12_RESOURCE_STATE_PRESENT,
@@ -974,25 +964,30 @@ void Application::Run() {
 			);
 			_cmdList->ResourceBarrier(1, &beforeDrawTransitionDesc);
 
-			// register 1 pass as texture
-			_cmdList->SetDescriptorHeaps(1, _postProcessSRVHeap.GetAddressOf());
-			auto handle = _postProcessSRVHeap->GetGPUDescriptorHandleForHeapStart();
-			// パラメーター0番とヒープを関連付ける
-			_cmdList->SetGraphicsRootDescriptorTable(0, handle);
+			{
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
+				if (bbIdx == 1) rtvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
+				_cmdList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
+				_cmdList->SetGraphicsRootSignature(_canvasRootSignature.Get());
+				_cmdList->SetPipelineState(_canvasPipelineState.Get());
+			}
 
-			//for ahadow map
-			//_cmdList->SetDescriptorHeaps(1, _depthSRVHeap.GetAddressOf());
-			//_cmdList->SetGraphicsRootDescriptorTable(0, _depthSRVHeap->GetGPUDescriptorHandleForHeapStart());
+			{
+				{// register 1 pass as texture
+					// SRV of _postProcessResource is the first SRV created from Application::CreateDepthStencilView()
+					auto handle = g_resourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart();
+					_cmdList->SetGraphicsRootDescriptorTable(0, handle);
+				}
 
-
-			D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-			_cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
-			_cmdList->SetGraphicsRootSignature(_canvasRootSignature.Get());
-			_cmdList->SetPipelineState(_canvasPipelineState.Get());
-
-			_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-			_cmdList->IASetVertexBuffers(0, 1, &_canvasVBV);
-			_cmdList->DrawInstanced(4, 1, 0, 0);
+				_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+				_cmdList->IASetVertexBuffers(0, 1, &_canvasVBV);
+				_cmdList->DrawInstanced(4, 1, 0, 0);
+			}
+			{ // ImGui draws to RT set by OMSetRenderTargets, so make commands for rendering ImGui while the state of that RT is D3D12_RESOURCE_STATE_RENDER_TARGET
+				DrawImGui(showAnimationSettings, animState);
+				ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _cmdList.Get());
+			}
 
 			auto afterDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
 				g_pRenderTargets[bbIdx].Get(),
@@ -1001,7 +996,7 @@ void Application::Run() {
 			);
 			_cmdList->ResourceBarrier(1, &afterDrawTransitionDesc);
 		}
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _cmdList.Get());
+
 
 		_cmdList->Close();
 		// コマンドリストは複数渡せる？コマンドリストのリストを作成

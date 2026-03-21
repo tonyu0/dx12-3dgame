@@ -7,7 +7,6 @@ public:
 	TDX12ShaderResource(ID3D12Resource* inResource) : m_shaderResource(inResource) {}
 	TDX12ShaderResource(const std::string& textureFileName, ID3D12Device* device);
 	void Initialize(const std::string& textureFileName, ID3D12Device* device); // テクスチャパスからResource初期化
-	void CreateView(D3D12_CPU_DESCRIPTOR_HANDLE descriptorHandle, ID3D12Device* device);
 	bool IsValid() {
 		return m_shaderResource != nullptr;
 	}
@@ -39,7 +38,6 @@ public:
 		auto idx = path.rfind(L'.');
 		return path.substr(idx + 1, path.length() - idx - 1);
 	}
-private:
 	ID3D12Resource* m_shaderResource = nullptr;
 	DirectX::TexMetadata m_textureMetadata = {};
 };
