@@ -555,7 +555,7 @@ void Application::SetupImGui() {
 	// DescriptorHeap上のD3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLEが使用時に取れれば良い。
 }
 
-void Application::DrawImGui(bool showAnimationSettings, ModelViewer::AnimState& animState) {
+void Application::DrawImGui(bool &useGpuSkinning, ModelViewer::AnimState& animState) {
 	
 		ImGuiIO& io = ImGui::GetIO();
 
@@ -570,7 +570,7 @@ void Application::DrawImGui(bool showAnimationSettings, ModelViewer::AnimState& 
 		{
 			ImGui::Begin("Animation Settings");
 
-
+			ImGui::Checkbox("Use GPU Skinning", &useGpuSkinning);
 			ImGui::Checkbox("Is Playing", &animState.isPlaying);
 			ImGui::Checkbox("Is Looping", &animState.isLooping);
 
@@ -703,7 +703,6 @@ void Application::SetVerticesInfo() {
 		auto vertices = itr.second;
 		auto indices = _modelImporter->mesh_indices[name];
 		// Material material = mesh_materials[name];
-		//UPLOAD(確保は可能)
 		heapprop.Type = D3D12_HEAP_TYPE_UPLOAD;
 		heapprop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		heapprop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
@@ -724,10 +723,6 @@ void Application::SetVerticesInfo() {
 			continue;
 		}
 		ID3D12Resource* vertBuff = nullptr;
-		// D3D12_HEAP_PROPERTIES unko = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);// UPLOADヒープとして 
-		// D3D12_RESOURCE_DESC unti = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));// サイズに応じて適切な設定になる便利
-		// CreateCommittedResource(): prepare the resource GPU can handle
-		// Descriptor: in general, it is a descript for GPU about where the resource is or what the type of the resource is or something
 		CheckError("CreateVertexBufferResource", _dev->CreateCommittedResource(
 			&heapprop,
 			D3D12_HEAP_FLAG_NONE,
@@ -824,7 +819,7 @@ void Application::Run() {
 	MSG msg = {};
 	float angle = .0;
 
-	bool showAnimationSettings = true;
+	bool useGpuSkinning = true;
 	AnimState animState = _modelImporter->GetDefaultAnimState();
 
 	std::chrono::steady_clock::time_point previousFrameTime = std::chrono::high_resolution_clock::now();
@@ -985,7 +980,7 @@ void Application::Run() {
 				_cmdList->DrawInstanced(4, 1, 0, 0);
 			}
 			{ // ImGui draws to RT set by OMSetRenderTargets, so make commands for rendering ImGui while the state of that RT is D3D12_RESOURCE_STATE_RENDER_TARGET
-				DrawImGui(showAnimationSettings, animState);
+				DrawImGui(useGpuSkinning, animState);
 				ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _cmdList.Get());
 			}
 

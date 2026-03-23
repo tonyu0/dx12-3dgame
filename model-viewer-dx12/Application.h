@@ -86,7 +86,7 @@ private:
 
 	// ImGui
 	void SetupImGui();
-	void DrawImGui(bool showAnimationSettings, ModelViewer::AnimState& animState);
+	void DrawImGui(bool &useGpuSkinning, ModelViewer::AnimState& animState);
 	void CleanupImGui();
 
 	// Singleton: private constructor
