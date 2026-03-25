@@ -3,8 +3,7 @@
 class TShader {
 public:
 	TShader() = default;
-	void LoadVS(LPCWSTR shaderFilePath, LPCSTR shaderEntryPoint);
-	void LoadPS(LPCWSTR shaderFilePath, LPCSTR shaderEntryPoint);
+	void Load(LPCWSTR shaderFilePath, LPCSTR shaderEntryPoint, LPCSTR shaderTarget);
 	D3D12_SHADER_BYTECODE GetShaderBytecode() noexcept {
 		return CD3DX12_SHADER_BYTECODE(m_shaderBlob.Get());
 	}

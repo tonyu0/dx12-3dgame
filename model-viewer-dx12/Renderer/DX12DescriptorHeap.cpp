@@ -1,35 +1,36 @@
 #include "DX12DescriptorHeap.h"
+#include "../Types.h"
 
-static constexpr int NUM_DESCRIPTORS = 128; 
+static constexpr size_t NUM_DESCRIPTORS = 128; 
 // 0~63:	static locations for Descriptor Table (resources need to be continuous), the resource and its Descriptor Heap are stored in the order they are added.
 // 64~127:	dynamic locations for ImGui or single use of SRV or like that. Managed by the pooling way
 
 /**
 * @brief Make sure you add the resources in the correct order
 */
-void TDX12DescriptorHeap::AddConstantBuffer(ID3D12Device* pDev, ID3D12Resource* constantBuffer) {
-	if (constantBuffer == nullptr) {
-		std::cout << "Given Constant Buffer was nullptr!" << std::endl;
-		return;
+D3D12_GPU_DESCRIPTOR_HANDLE TDX12DescriptorHeap::AddCBV(ID3D12Device* pDev, ID3D12Resource* pBuffer) {
+	if (pBuffer == nullptr) {
+		std::cout << "Given Buffer was nullptr!" << std::endl;
+		return D3D12_GPU_DESCRIPTOR_HANDLE();
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
 	cpuHandle.ptr = m_heapStartCPU.ptr + m_heapHandleIncSize * numResources;
 
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = constantBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = (UINT)constantBuffer->GetDesc().Width;
+	cbvDesc.BufferLocation = pBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = (UINT)pBuffer->GetDesc().Width;
 	pDev->CreateConstantBufferView(&cbvDesc, cpuHandle);
 
-	++numResources;
+	return D3D12_GPU_DESCRIPTOR_HANDLE(m_heapStartGPU.ptr + numResources++ * m_heapHandleIncSize);
 }
 /**
 * @brief Make sure you add the resources in the correct order
 */
-void TDX12DescriptorHeap::AddShaderResource(ID3D12Device* pDev, ID3D12Resource* shaderResource, DXGI_FORMAT shaderResourceFormat) {
-	if (shaderResource == nullptr) {
-		std::cout << "Given Shader Resource was nullptr!" << std::endl;
-		return;
+D3D12_GPU_DESCRIPTOR_HANDLE TDX12DescriptorHeap::AddSRV(ID3D12Device* pDev, ID3D12Resource* pBuffer, DXGI_FORMAT shaderResourceFormat) {
+	if (pBuffer == nullptr) {
+		std::cout << "Given Buffer was nullptr!" << std::endl;
+		return D3D12_GPU_DESCRIPTOR_HANDLE();
 	}
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
@@ -41,9 +42,9 @@ void TDX12DescriptorHeap::AddShaderResource(ID3D12Device* pDev, ID3D12Resource* 
 	// 画像データのRGBSの情報がそのまま捨て宇されたフォーマットに、データ通りの順序で割り当てられているか
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;//2Dテクスチャ
 	srvDesc.Texture2D.MipLevels = 1;//ミップマップは使用しないので1
-	pDev->CreateShaderResourceView(shaderResource, &srvDesc, cpuHandle);
+	pDev->CreateShaderResourceView(pBuffer, &srvDesc, cpuHandle);
 
-	++numResources;
+	return D3D12_GPU_DESCRIPTOR_HANDLE(m_heapStartGPU.ptr + numResources++ * m_heapHandleIncSize);
 }
 
 void TDX12DescriptorHeap::AllocDynamic(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescHandle, D3D12_GPU_DESCRIPTOR_HANDLE* gpuDescHandle) {
@@ -51,15 +52,15 @@ void TDX12DescriptorHeap::AllocDynamic(D3D12_CPU_DESCRIPTOR_HANDLE* cpuDescHandl
 		std::cout << "The number of dynamic Descriptor Heap is full!" << std::endl;
 		return;
 	}
-	int idx = m_freeIndices.back();
+	size_t idx = m_freeIndices.back();
 	m_freeIndices.pop_back();
 	cpuDescHandle->ptr = m_heapStartCPU.ptr + idx * m_heapHandleIncSize;
 	gpuDescHandle->ptr = m_heapStartGPU.ptr + idx * m_heapHandleIncSize;
 }
 
 void TDX12DescriptorHeap::FreeDynamic(D3D12_CPU_DESCRIPTOR_HANDLE cpuDescHandle, D3D12_GPU_DESCRIPTOR_HANDLE gpuDescHandle) {
-	unsigned int cpuIdx = (cpuDescHandle.ptr - m_heapStartCPU.ptr) / m_heapHandleIncSize;
-	unsigned int gpuIdx = (gpuDescHandle.ptr - m_heapStartGPU.ptr) / m_heapHandleIncSize;
+	size_t cpuIdx = (cpuDescHandle.ptr - m_heapStartCPU.ptr) / m_heapHandleIncSize;
+	size_t gpuIdx = (gpuDescHandle.ptr - m_heapStartGPU.ptr) / m_heapHandleIncSize;
 	if (cpuIdx != gpuIdx) {
 		std::cout << "Failed to free dynamic Descriptor Heap because the given data location of CPU and GPU are different!" << std::endl;
 		return;
@@ -82,7 +83,7 @@ TDX12DescriptorHeap::TDX12DescriptorHeap(ID3D12Device* pDev) {
 	m_heapStartGPU = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 	m_heapHandleIncSize = pDev->GetDescriptorHandleIncrementSize(descHeapDesc.Type);
 
-	for (unsigned int i = 64; i < NUM_DESCRIPTORS; ++i) {
+	for (size_t i = 64; i < NUM_DESCRIPTORS; ++i) {
 		m_freeIndices.push_back(i);
 	}
 }

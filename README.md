@@ -13,14 +13,14 @@ This project focuses on low-level graphics programming.
 - Descriptor heap management
 - Shadow mapping
 - Control various animation properties from ImGui
+- GPU skinning (compute shader)
 
 ### Planned
-- GPU skinning (compute shader)
 - Deferred rendering
 - Physically Based Rendering (PBR)
 - Image-Based Lighting (IBL)
 
-### Current progress (v0.2.0)
+### Current progress (v0.3.0)
 
 <img width="682" height="452" alt="Image" src="https://github.com/user-attachments/assets/b7c54acf-6e3c-41a8-9acd-591a2a46b332" />
 

@@ -9,24 +9,13 @@ using namespace DirectX;
 
 class Application {
 private:
-	struct TransformMatrices {
-		XMMATRIX world;
-		XMMATRIX bones[256];
-	};
-	struct SceneMatrices {
-		XMMATRIX view;
-		XMMATRIX proj;
-		XMMATRIX lightViewProj;
-		XMMATRIX shadow;
-		XMFLOAT3 eye;
-	};
 	// private member
 	// Windows
 	ID3DBlob* errorBlob = nullptr;
 	XMMATRIX _vMatrix = XMMatrixIdentity();
 	XMMATRIX _pMatrix = XMMatrixIdentity();
-	TransformMatrices* _mapTransformMatrix = nullptr;
-	SceneMatrices* _mapSceneMatrix = nullptr;
+	ModelViewer::TransformMatrices* _mapTransformMatrix = nullptr;
+	ModelViewer::SceneMatrices* _mapSceneMatrix = nullptr;
 
 	// DXGI
 	Microsoft::WRL::ComPtr<IDXGIFactory6> _dxgiFactory = nullptr; // DXGI interface
@@ -46,11 +35,16 @@ private:
 	UINT64 _fenceVal = 0;
 	// Pipeline State
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _canvasPipelineState = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _shadowPipelineState = nullptr;
 
 	class TDX12RootSignature* m_rootSignature = nullptr;
+
+	// Pipeline settings of pass for Post Process
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _canvasRootSignature = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _canvasPipelineState = nullptr;
+	// Pipeline settings of pass for Compute (Skinning for now)
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> _computeRootSignature = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _computePipelineState = nullptr;
 
 	static class TDX12DescriptorHeap* g_resourceDescriptorHeapWrapper; // Descriptor Heap Wrapper for CBV, SRV, UAV
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvHeap = nullptr;
@@ -66,6 +60,7 @@ private:
 	std::map<std::string, D3D12_VERTEX_BUFFER_VIEW> vertex_buffer_view;
 	D3D12_VERTEX_BUFFER_VIEW _canvasVBV = {}; // for post process canvas
 	std::map<std::string, D3D12_INDEX_BUFFER_VIEW> index_buffer_view;
+	std::vector<ModelViewer::MeshDrawInfo> mesh_draw_info_list;
 
 	ModelImporter* _modelImporter = nullptr; // ÇπÇﬂÇƒshared_ptrÇ…ÇµÇΩÇ¢Ç™åªèÛÇ§Ç‹Ç≠Ç¢Ç¡ÇƒÇ»Ç¢ÅB
 	TWindowManager* windowManager = nullptr;
@@ -83,6 +78,7 @@ private:
 	void WaitDrawDone();
 
 	void SetVerticesInfo();
+	void SetupComputePass();
 
 	// ImGui
 	void SetupImGui();

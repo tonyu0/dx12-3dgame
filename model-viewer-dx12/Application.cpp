@@ -199,8 +199,8 @@ void Application::CreateDepthStencilView() {
 	_dev->CreateDepthStencilView(_lightDepthBuffer.Get(), &dsvDesc, dsvHandle);
 
 	// CreateDepthSRV
-	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _depthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
-	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _lightDepthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
+	g_resourceDescriptorHeapWrapper->AddSRV(_dev.Get(), _depthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
+	g_resourceDescriptorHeapWrapper->AddSRV(_dev.Get(), _lightDepthBuffer.Get(), DXGI_FORMAT_R32_FLOAT);
 }
 
 void Application::CreatePostProcessResourceAndView() {
@@ -227,7 +227,7 @@ void Application::CreatePostProcessResourceAndView() {
 	cpuHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) * 2; // RenderTarget * 2
 	_dev->CreateRenderTargetView(_postProcessResource.Get(), &rtvDesc, cpuHandle);
 
-	g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), _postProcessResource.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
+	g_resourceDescriptorHeapWrapper->AddSRV(_dev.Get(), _postProcessResource.Get(), DXGI_FORMAT_R8G8B8A8_UNORM);
 	// MEMO: _postProcessResource is used both as Render Target and Shader Resource. 
 	// Through _postProcessRTVHeap, write draw output of first pass to _postProcessResource. After that, through _postProcessSRVHeap, use it as texture for post processing.
 }
@@ -252,7 +252,7 @@ bool Application::CreatePipelineState() {
 				0,
 				DXGI_FORMAT_R32G32B32_FLOAT,
 				0,
-				12, // (R32G32B32 = 4byte * 3)
+				16, // (R32G32B32 = 4byte * 3)
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 				0
 			},
@@ -261,7 +261,7 @@ bool Application::CreatePipelineState() {
 				0,
 				DXGI_FORMAT_R32G32_FLOAT,
 				0,
-				24,
+				32,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 				0
 			},
@@ -270,7 +270,7 @@ bool Application::CreatePipelineState() {
 				0,
 				DXGI_FORMAT_R16G16_UINT,
 				0,
-				32,
+				40,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
 			},
 			{
@@ -278,7 +278,7 @@ bool Application::CreatePipelineState() {
 				0,
 				DXGI_FORMAT_R32G32_FLOAT,
 				0,
-				36,
+				48,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA
 			}
 		};
@@ -289,8 +289,8 @@ bool Application::CreatePipelineState() {
 	TShader vs, ps;
 	{ // 2. Register shaders and their settings
 		// Compile shader, using d3dcompiler
-		vs.LoadVS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainVS");
-		ps.LoadPS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainPS");
+		vs.Load(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainVS", "vs_5_0");
+		ps.Load(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "MainPS", "ps_5_0");
 		if (!vs.IsValid() || !ps.IsValid()) {
 			std::cout << "Failed to load shader." << std::endl;
 			return false;
@@ -396,10 +396,13 @@ void Application::CreateCanvasPipelineState() {
 			0
 		},
 	};
-	// ここで、シェーダーごとにパイプラインステートを作る？
 	TShader vs, ps;
-	vs.LoadVS(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainVS");
-	ps.LoadPS(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainPS");
+	vs.Load(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainVS", "vs_5_0");
+	ps.Load(L"../model-viewer-dx12/shaders/CanvasShader.hlsl", "MainPS", "ps_5_0");
+	if (!vs.IsValid() || !ps.IsValid()) {
+		std::cout << "Failed to load shader." << std::endl;
+		return;
+	}
 
 	// create root signature
 	D3D12_DESCRIPTOR_RANGE range = {};
@@ -449,7 +452,7 @@ void Application::CreateCanvasPipelineState() {
 
 void Application::CreateShadowMapPipelineState(D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipelineDesc) {
 	TShader vs;
-	vs.LoadVS(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "ShadowVS");
+	vs.Load(L"../model-viewer-dx12/shaders/BasicShader.hlsl", "ShadowVS", "vs_5_0");
 	gpipelineDesc.VS = vs.GetShaderBytecode();
 	gpipelineDesc.PS.pShaderBytecode = nullptr;
 	gpipelineDesc.PS.BytecodeLength = 0;
@@ -491,8 +494,13 @@ void Application::CreateCBV() {
 		_mapSceneMatrix->eye = XMFLOAT3(eyePos.m128_f32[0], eyePos.m128_f32[1], eyePos.m128_f32[2]);
 		_mapSceneMatrix->shadow = XMMatrixShadow(planeVec, -lightVec);
 	}
-	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), transformConstantBuffer->m_constantBuffer);
-	g_resourceDescriptorHeapWrapper->AddConstantBuffer(_dev.Get(), sceneConstantBuffer->m_constantBuffer);
+	g_resourceDescriptorHeapWrapper->AddCBV(_dev.Get(), transformConstantBuffer->m_constantBuffer);
+	g_resourceDescriptorHeapWrapper->AddCBV(_dev.Get(), sceneConstantBuffer->m_constantBuffer);
+	{ // Send handle data to CBV which each mesh will use (mainly for bone matrices on Compute Pass)
+		for (auto& mesh : mesh_draw_info_list) {
+			mesh.cbvGpuHandle = transformConstantBuffer->m_constantBuffer->GetGPUVirtualAddress();
+		}
+	}
 }
 
 void Application::WaitDrawDone() {
@@ -572,6 +580,7 @@ void Application::DrawImGui(bool &useGpuSkinning, ModelViewer::AnimState& animSt
 
 			ImGui::Checkbox("Use GPU Skinning", &useGpuSkinning);
 			ImGui::Checkbox("Is Playing", &animState.isPlaying);
+			ImGui::SameLine();
 			ImGui::Checkbox("Is Looping", &animState.isLooping);
 
 			ImGui::SliderFloat("Playing Time", &animState.playingTime, 0.f, animState.currentAnimDuration);
@@ -593,7 +602,6 @@ void Application::DrawImGui(bool &useGpuSkinning, ModelViewer::AnimState& animSt
 				}
 			}
 
-			//ImGui::SameLine();
 
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 			ImGui::End();
@@ -667,9 +675,6 @@ bool Application::Init() {
 }
 
 void Application::SetVerticesInfo() {
-	D3D12_HEAP_PROPERTIES heapprop = {};
-	D3D12_RESOURCE_DESC resdesc = {};
-
 	CanvasVertex canvas[4] = {
 		{{-1.f,-1.f,0.1f},{0.f,1.f}}, // bottom left
 		{{-1.f,1.f,0.1f},{0.f,0.f}}, // top left
@@ -702,65 +707,206 @@ void Application::SetVerticesInfo() {
 		std::string name = itr.first;
 		auto vertices = itr.second;
 		auto indices = _modelImporter->mesh_indices[name];
+		UINT vertexCount = (UINT)vertices.size();
+		UINT vertexSize = (UINT)sizeof(Vertex);
+		UINT indicesDataSize = (UINT)sizeof(unsigned short) * (UINT)indices.size();
 		// Material material = mesh_materials[name];
-		heapprop.Type = D3D12_HEAP_TYPE_UPLOAD;
-		heapprop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heapprop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		// Type, CPUPageProperty, MemoryPoolPreference, CreationNodeMask, VisibleNodeMask
+		// Type: How to use this resource. DEFAULT is GPU only RW memory, UPLOAD is the buffer sent from CPU to GPU, READBACK is the buffer sent from GPU to CPU.
+		//D3D12_HEAP_PROPERTIES heapprop = { D3D12_HEAP_TYPE_DEFAULT , D3D12_CPU_PAGE_PROPERTY_UNKNOWN , D3D12_MEMORY_POOL_UNKNOWN };
+		D3D12_HEAP_PROPERTIES heappropDefault = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		D3D12_HEAP_PROPERTIES heappropUpload = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		// 方針メモ: UPLOADヒープ（中継用）からDEFAULTヒープへコピーする。
+		// - 元々UPLOADでバッファを定義→Mapで実データをGPUに送っていたが、描画の前段にCS用のパイプラインを作ることを考えると、CSへは頂点情報をSRVで渡す必要がある。
+		// - しかし、SRVはUPLOADとしては作成できない（内部的な理由？）。そこで
+		//　Buffer A(UPLOAD) : Map して頂点データを書き込む
+		//　Buffer B(DEFAULT) : SRVとして定義
+		//	転送 : CopyBufferRegion で A → B へコピー。
+		//	CS実行 : Buffer B(SRV) を入力、Buffer C(UAV / VBV) を出力として処理。
+		//	描画 : Buffer C を VBV として使用。
+		// WriteToSubresource は、主に「ごく小さなデータを1回だけ、初期化時に書き込みたい」といったケースでコードを簡略化するために使われるらしい。ほぼテクスチャ用で頂点用でも使えるかもだけど
 
-		resdesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resdesc.Width = sizeof(vertices[0]) * vertices.size();
-		resdesc.Height = 1;
-		resdesc.DepthOrArraySize = 1;
-		resdesc.MipLevels = 1;
-		resdesc.Format = DXGI_FORMAT_UNKNOWN;
-		resdesc.SampleDesc.Count = 1;
-		resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		resdesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		D3D12_RESOURCE_DESC resdescVertex = CD3DX12_RESOURCE_DESC::Buffer(vertexCount * vertexSize);
+		D3D12_RESOURCE_DESC resdescVertexAllowUnorderedAccess = CD3DX12_RESOURCE_DESC::Buffer(vertexCount * vertexSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		D3D12_RESOURCE_DESC resdescIndex = CD3DX12_RESOURCE_DESC::Buffer(indicesDataSize);
 
-		if (resdesc.Width == 0)
+		if (resdescVertex.Width == 0)
 		{
 			// ベジエ設定等?
 			continue;
 		}
-		ID3D12Resource* vertBuff = nullptr;
-		CheckError("CreateVertexBufferResource", _dev->CreateCommittedResource(
-			&heapprop,
-			D3D12_HEAP_FLAG_NONE,
-			&resdesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff)));
+
+		// Fill this structure for downstream drawing
+		MeshDrawInfo meshInfo = {};
+
+		// ===== Allocate resources on GPU =====
+		// from
 		Vertex* vertMap = nullptr;
-		CheckError("MapVertexBuffer", vertBuff->Map(0, nullptr, reinterpret_cast<void**>(&vertMap)));
-		std::copy(vertices.begin(), vertices.end(), vertMap);
-		vertBuff->Unmap(0, nullptr);
-		ID3D12Resource* idxBuff = nullptr;
-		resdesc.Width = sizeof(indices[0]) * indices.size();
-		CheckError("CreateIndexBufferResource", _dev->CreateCommittedResource(
-			&heapprop,
-			D3D12_HEAP_FLAG_NONE,
-			&resdesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&idxBuff)));
 		unsigned short* mappedIdx = nullptr;
-		idxBuff->Map(0, nullptr, reinterpret_cast<void**>(&mappedIdx));
-		std::cout << sizeof(indices[0]) << " " << indices[0] << " " << indices.size() << std::endl;
-		std::copy(indices.begin(), indices.end(), mappedIdx);
-		idxBuff->Unmap(0, nullptr);
+		// to
+		ID3D12Resource* vertexBufferUpload = nullptr; // 
+		ID3D12Resource* vertexBufferDefault = nullptr;
+		ID3D12Resource* indexBuffer = nullptr;
+		ID3D12Resource* pOutputVertexBuffer = nullptr; // Output from Compute Pass (managed by UAV)
+		{ // Map info of vertices
+			// (1) Buffer used for SRV UPLOAD
+			CheckError("CreateVertexBufferResource",
+				_dev->CreateCommittedResource(
+					&heappropUpload, // UPLOAD
+					D3D12_HEAP_FLAG_NONE,
+					&resdescVertex,
+					D3D12_RESOURCE_STATE_GENERIC_READ, // Initial state on GPU: GENERIC_READ beacause firstly it is read when copying vertex data
+					nullptr,
+					IID_PPV_ARGS(&vertexBufferUpload)
+				)
+			);
+			// (2) Buffer used for SRV UPLOAD
+			CheckError("CreateVertexBufferResource",
+				_dev->CreateCommittedResource(
+					&heappropDefault, // DEFAULT
+					D3D12_HEAP_FLAG_NONE,
+					&resdescVertex,
+					D3D12_RESOURCE_STATE_COMMON, // Initial state on GPU: COPY_DEST because firstly data will copy to this
+					nullptr,
+					IID_PPV_ARGS(&vertexBufferDefault)
+				)
+			);
+			CheckError("MapVertexBuffer", vertexBufferUpload->Map(0, nullptr, reinterpret_cast<void**>(&vertMap)));
+			std::copy(vertices.begin(), vertices.end(), vertMap);
+			vertexBufferUpload->Unmap(0, nullptr);
+			// Do nothing to the UPLOAD buffer for now, use _cmdList->CopyBufferRegion to copy data from the DEFAULT buffer
+			// (3) Output Vertices
+			CheckError("CreateSkinnedVertexBufferResource",
+				_dev->CreateCommittedResource(
+					&heappropDefault,
+					D3D12_HEAP_FLAG_NONE,
+					&resdescVertexAllowUnorderedAccess,
+					D3D12_RESOURCE_STATE_COMMON, // Initial sate on GPU: UNORDERED_ACCESS because CS output will be written to this
+					nullptr,
+					IID_PPV_ARGS(&pOutputVertexBuffer)
+				)
+			);
 
-		// bufferをnullptrで作成、適当なアドレス割り当て　→　MapでGPU上の適当な位置にmap →　データコピー　→　bufferのGPU上仮想アドレスを取り、Viewに登録。
-		// この流れから、スコープが変わるなどでbufferのアドレスが破棄されるとGPU上データにアクセスできなくなる？
+		}
+		{ // Map index of vertices
+			CheckError("CreateIndexBufferResource", 
+				_dev->CreateCommittedResource(
+					&heappropUpload, 
+					D3D12_HEAP_FLAG_NONE, 
+					&resdescIndex, 
+					D3D12_RESOURCE_STATE_INDEX_BUFFER, 
+					nullptr, 
+					IID_PPV_ARGS(&indexBuffer)
+				)
+			);
+			indexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mappedIdx));
+			std::copy(indices.begin(), indices.end(), mappedIdx);
+			indexBuffer->Unmap(0, nullptr);
+		}
 
-
+		// ===== Create views for resources created above =====
+		// Vertex Buffer View
 		D3D12_VERTEX_BUFFER_VIEW vbView = {};
-		vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
-		vbView.SizeInBytes = sizeof(vertices[0]) * (UINT)vertices.size();//全バイト数
-		vbView.StrideInBytes = sizeof(vertices[0]);//1頂点あたりのバイト数
+		vbView.BufferLocation = pOutputVertexBuffer->GetGPUVirtualAddress();
+		vbView.SizeInBytes = vertexCount * vertexSize;
+		vbView.StrideInBytes = vertexSize;
 		vertex_buffer_view[name] = vbView;
-		//インデックスバッファビューを作成
+		// Index Buffer View
 		D3D12_INDEX_BUFFER_VIEW ibView = {};
-		ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
+		ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 		ibView.Format = DXGI_FORMAT_R16_UINT;
-		ibView.SizeInBytes = sizeof(indices[0]) * (int)indices.size();
+		ibView.SizeInBytes = indicesDataSize;
 		index_buffer_view[name] = ibView;
+
+
+
+		// TODO: GPU Handleを前から進めていって、指定のところまで移動させてからSetGraphicsRootDescriptorTableをやるのは拡張性に乏しいので、特定データを扱う構造体にGPU Handleを持たせる。一旦CSで使うデータのみ
+		meshInfo.vertexCount = (UINT)vertices.size();
+		meshInfo.pOutputVertexBuffer = pOutputVertexBuffer;
+		{ // SRV
+			// TODO: AddSRV is not sufficient to organize all the SRV creation (for not knowing how to use SRV in ways other than texture)
+			// https://github.com/microsoft/DirectX-Graphics-Samples/blob/b5f92e2251ee83db4d4c795b3cba5d470c52eaf8/MiniEngine/Core/GpuBuffer.cpp?plain=1#L195-L197
+			D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+			g_resourceDescriptorHeapWrapper->AllocDynamic(&cpuHandle, &gpuHandle);
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srvDesc.Buffer.NumElements = vertexCount;
+			srvDesc.Buffer.StructureByteStride = vertexSize;
+			_dev->CreateShaderResourceView(vertexBufferDefault, &srvDesc, cpuHandle);
+
+			meshInfo.srvGpuHandle = gpuHandle;
+		}
+		{ // UAV
+			D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+			g_resourceDescriptorHeapWrapper->AllocDynamic(&cpuHandle, &gpuHandle);
+
+			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+			uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+			uavDesc.Buffer.NumElements = vertexCount;
+			uavDesc.Buffer.StructureByteStride = vertexSize;
+			_dev->CreateUnorderedAccessView(pOutputVertexBuffer, nullptr, &uavDesc, cpuHandle);
+			//meshInfo.uavGpuHandle = g_resourceDescriptorHeapWrapper->AddUAV(_dev.Get(), pOutputVertexBuffer); // TODO: remove this function
+			meshInfo.uavGpuHandle = gpuHandle;
+		}
+
+		//meshInfo.cbvGpuHandle =  // -> assigned in CreateCBV
+		mesh_draw_info_list.push_back(meshInfo);
+
+		_cmdList->CopyBufferRegion(vertexBufferDefault, 0, vertexBufferUpload, 0, vertexCount * vertexSize);
 	}
+}
+
+void Application::SetupComputePass() {
+	// Shader compile -> Create Root signature -> Create compute pipeline -> Create DescHeap -> Create Resources -> Create UAV -> Map
+
+	TShader cs;
+	cs.Load(L"../model-viewer-dx12/shaders/SkinningCS.hlsl", "main", "cs_5_0");
+
+	// Root Signature info from CS?
+
+	// TODO: Integrate with TDX12RootSignature::Initialize
+	D3D12_DESCRIPTOR_RANGE descRanges[2]; // type is like: D3D12_DESCRIPTOR_RANGE_TYPE RangeType; UINT NumDescriptors; UINT BaseShaderRegister; UINT RegisterSpace; UINT OffsetInDescriptorsFromTableStart;
+	descRanges[0] = { D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0/*t0*/, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}; // t0: InputVertices
+	descRanges[1] = { D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0/*u0*/, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND}; // u0: OutputVertices
+
+	D3D12_ROOT_PARAMETER rootParams[3]; // SRV, UAV, CBV
+	// ----- t0 -----
+	rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+	rootParams[0].DescriptorTable.pDescriptorRanges = &descRanges[0];
+	rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	// ----- u0 -----
+	rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParams[1].DescriptorTable.NumDescriptorRanges = 1;
+	rootParams[1].DescriptorTable.pDescriptorRanges = &descRanges[1];
+	rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	// ----- b0 -----
+	rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParams[2].Descriptor.ShaderRegister = 0; // b0: BoneMatrices
+	rootParams[2].Descriptor.RegisterSpace = 0;
+	rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	// Seriarize and create Root Signature
+	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = { 3, rootParams, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE };
+
+	ID3DBlob* rootSignatureBlob = nullptr;
+	// Selialize Root Signature?
+	ID3DBlob* errorBlob = nullptr;
+	D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &rootSignatureBlob, &errorBlob);
+	_dev->CreateRootSignature(0, rootSignatureBlob->GetBufferPointer(), rootSignatureBlob->GetBufferSize(), IID_PPV_ARGS(_computeRootSignature.ReleaseAndGetAddressOf()));
+	rootSignatureBlob->Release();
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC computePipelineStateDesc = {};
+	computePipelineStateDesc.pRootSignature = _computeRootSignature.Get();
+	computePipelineStateDesc.CS = cs.GetShaderBytecode();
+	computePipelineStateDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	_dev->CreateComputePipelineState(&computePipelineStateDesc, IID_PPV_ARGS(&_computePipelineState));
 }
 
 void Application::Run() {
@@ -780,7 +926,12 @@ void Application::Run() {
 	scissorrect.right = scissorrect.left + windowManager->GetWidth();//切り抜き右座標
 	scissorrect.bottom = scissorrect.top + windowManager->GetHeight();//切り抜き下座標
 
+
 	SetVerticesInfo();
+
+	CreateCBV(); // Need create CBV after SetVerticesInfo for now because CreateCBV insert GPU address of CB into mesh_draw_info_list  (TODO: redesign structure)
+
+	SetupComputePass();
 	//ノイズテクスチャの作成
 //struct TexRGBA {
 //	unsigned char R, G, B, A;
@@ -798,16 +949,14 @@ void Application::Run() {
 	//materialCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // マップ先を押してる
 	//materialCBVDesc.SizeInBytes = (sizeof(material) + 0xff) & ~0xff;
 	//_dev->CreateConstantBufferView(&materialCBVDesc, basicHeapHandle);
-	CreateCBV();
 
-	// Register FBX Model to SRV
-	for (auto& itr : _modelImporter->mesh_vertices) {
-		std::string mesh_name = itr.first;
+	// Register texture SRV
+	for (const std::string& mesh_name : _modelImporter->mesh_names) {
 		std::cout << "Material Name: " << _modelImporter->mesh_material_name[mesh_name] << " Mesh Name is " << mesh_name << std::endl;
 		const std::string& textureFilename = std::string("../model-viewer-dx12/assets/") + _modelImporter->mesh_texture_name[mesh_name];
 		std::cout << "Loading Texture: " << textureFilename << std::endl;
 		TDX12ShaderResource* shaderResource = new TDX12ShaderResource(textureFilename, _dev.Get());
-		g_resourceDescriptorHeapWrapper->AddShaderResource(_dev.Get(), shaderResource->m_shaderResource, shaderResource->m_textureMetadata.format);
+		g_resourceDescriptorHeapWrapper->AddSRV(_dev.Get(), shaderResource->m_shaderResource, shaderResource->m_textureMetadata.format);
 	}
 
 	if (g_resourceDescriptorHeapWrapper->numResources == 0) {
@@ -855,6 +1004,8 @@ void Application::Run() {
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorrect);
 
+		_cmdList->SetDescriptorHeaps(1, g_resourceDescriptorHeapWrapper->GetAddressOf());
+
 		//{ // 0. Shadow pipeline (shadow map light depth)
 		//	// depthはbarrierとかいらない?
 		//	{
@@ -887,6 +1038,30 @@ void Application::Run() {
 		//	}
 		//}
 
+		std::vector<D3D12_RESOURCE_BARRIER> vertexBarriers;
+		{ // 0 pass (skinning with CS)
+			_cmdList->SetComputeRootSignature(_computeRootSignature.Get());
+			_cmdList->SetPipelineState(_computePipelineState.Get());
+			
+			for (const auto& mesh : mesh_draw_info_list) {
+				_cmdList->SetComputeRootDescriptorTable(0, mesh.srvGpuHandle); // t0: InputVertices
+				_cmdList->SetComputeRootDescriptorTable(1, mesh.uavGpuHandle); // u0: OutputVertices
+				_cmdList->SetComputeRootConstantBufferView(2, mesh.cbvGpuHandle); // b0: BoneMatrices
+
+				UINT threadGroupCount = (mesh.vertexCount + 63) / 64; // 64 vertex per thread group
+				_cmdList->Dispatch(threadGroupCount, 1, 1);
+			}
+
+			for (const auto& mesh : mesh_draw_info_list) {
+				vertexBarriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(
+					mesh.pOutputVertexBuffer,
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS, 
+					D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
+				));
+			}
+			_cmdList->ResourceBarrier((UINT)vertexBarriers.size(), vertexBarriers.data());
+		}
+
 		{ // 1 pass
 			// これunionらしい。Transition, Aliasing, UAV バリアがある。
 			D3D12_RESOURCE_BARRIER beforeDrawTransitionDesc = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -912,7 +1087,7 @@ void Application::Run() {
 			{// Set Resource DescriptorHeap
 				D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle(g_resourceDescriptorHeapWrapper->GetGPUDescriptorHandleForHeapStart());
 				auto srvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-				_cmdList->SetDescriptorHeaps(1, g_resourceDescriptorHeapWrapper->GetAddressOf());
+
 
 				{ // Heap start -> SRV of _postProcessResource -> SRV of _depthBuffer -> SRV of _lightDepthBuffer
 					gpuHandle.ptr += srvIncSize; // TODO: remove? (SRV of _postProcessResource is the first SRV created from Application::CreateDepthStencilView())
@@ -927,11 +1102,10 @@ void Application::Run() {
 				_cmdList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 				gpuHandle.ptr += srvIncSize * 2; // b0, b1
 
-				for (auto itr : _modelImporter->mesh_vertices) {
-					std::string name = itr.first;
+				_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				for (const std::string& name : _modelImporter->mesh_names) {
 					_cmdList->SetGraphicsRootDescriptorTable(1, gpuHandle); 
 
-					_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					_cmdList->IASetVertexBuffers(0, 1, &vertex_buffer_view[name]);
 					_cmdList->IASetIndexBuffer(&index_buffer_view[name]);
 					// _cmdList->DrawInstanced(4, 1, 0, 0);
@@ -947,7 +1121,17 @@ void Application::Run() {
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 			);
 			_cmdList->ResourceBarrier(1, &afterDrawTransitionDesc);
-
+			{ // Vertex barriers
+				UINT index = 0;
+				for (const auto& mesh : mesh_draw_info_list) {
+					vertexBarriers[index++] = CD3DX12_RESOURCE_BARRIER::Transition(
+						mesh.pOutputVertexBuffer,
+						D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+						D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+					);
+				}
+				_cmdList->ResourceBarrier((UINT)vertexBarriers.size(), vertexBarriers.data());
+			}
 		}
 		{ // 2 pass
 			// Transition RTV state from PRESENT to RENDER

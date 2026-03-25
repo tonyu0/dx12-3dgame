@@ -34,10 +34,11 @@ cbuffer Material : register(b1) {
 };
 
 float4 ShadowVS(in float4 pos: POSITION, in float4 normal : NORMAL, in float2 uv : TEXCOORD, in min16uint2 boneid : BONEID, in float2 weight : WEIGHT) : SV_POSITION{
-	if (boneid[0] != 255) {
-		matrix bonemat = (bones[boneid[0]] * weight[0] + bones[boneid[1]] * weight[1]) / (weight[0] + weight[1]);
-		pos = mul(bonemat, pos);
-	}
+    // Migrate to SkinningCS.hlsl
+	//if (boneid[0] != 255) {
+	//	matrix bonemat = (bones[boneid[0]] * weight[0] + bones[boneid[1]] * weight[1]) / (weight[0] + weight[1]);
+	//	pos = mul(bonemat, pos);
+	//}
     pos = mul(world, pos);
     return mul(lightViewProj, pos);
 }
@@ -45,11 +46,12 @@ float4 ShadowVS(in float4 pos: POSITION, in float4 normal : NORMAL, in float2 uv
 VS_OUT MainVS(in float4 pos : POSITION, in float3 normal : NORMAL, in float2 uv : TEXCOORD, in min16uint2 boneid : BONEID, in float2 weight : WEIGHT, in uint instanceID : SV_InstanceID)
 {
     VS_OUT output;
-    if (boneid[0] != 255)
-    {
-        matrix bonemat = (bones[boneid[0]] * weight[0] + bones[boneid[1]] * weight[1]) / (weight[0] + weight[1]);
-        pos = mul(bonemat, pos);
-    }
+    // Migrate to SkinningCS.hlsl
+    //if (boneid[0] != 255)
+    //{
+    //    matrix bonemat = (bones[boneid[0]] * weight[0] + bones[boneid[1]] * weight[1]) / (weight[0] + weight[1]);
+    //    pos = mul(bonemat, pos);
+    //}
     pos = mul(world, pos);
     if (instanceID == 1) // multiply shadow matrix if shadow pass (instanceID = 0 is model pass, instanceID = 1 is shadow pass)
     {

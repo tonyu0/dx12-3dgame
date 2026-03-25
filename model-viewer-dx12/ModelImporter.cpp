@@ -105,6 +105,7 @@ bool ModelImporter::CreateModelImporter(const std::string& inFbxFileName) {
 	for (int i = 0; i < meshCount; ++i) {
 		aiMesh* mesh = scene->mMeshes[i];
 		std::cout << i << " th mesh name is " << mesh->mName.C_Str() << std::endl;
+		mesh_names.push_back(mesh->mName.C_Str());
 		LoadMesh(mesh);
 	}
 

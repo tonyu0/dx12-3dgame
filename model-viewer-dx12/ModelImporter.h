@@ -37,6 +37,7 @@ private:
 public:
 	std::map<std::string, std::vector<ModelViewer::Vertex>> mesh_vertices; // 使うマテリアルごとに分類されたメッシュ。
 	std::map<std::string, std::vector<unsigned short>> mesh_indices;
+	std::vector<std::string> mesh_names;
 	// めっちゃ遠回りなんだけど、mesh_name -> material_name -> texture実体
 	// 複数のmeshで同じテクスチャを使うことがある場合、flyweight patternを使うと良い。これはmapにfindしてあったら返す、なかったら作るみたいにすればいい.
 	std::map<std::string, std::string> mesh_material_name;
